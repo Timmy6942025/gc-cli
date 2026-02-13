@@ -60,6 +60,10 @@ func handleCourseworkList(cfg *config.Config) func(*cli.Context) error {
 		}
 
 		courseID := c.String("course")
+		if _, err := client.GetCourse(ctx, courseID); err != nil {
+			return fmt.Errorf("course %s not found or access denied: %w", courseID, err)
+		}
+
 		coursework, _, err := client.ListCourseWork(ctx, courseID, 100)
 		if err != nil {
 			return fmt.Errorf("failed to list coursework: %w", err)
@@ -67,7 +71,7 @@ func handleCourseworkList(cfg *config.Config) func(*cli.Context) error {
 
 		filteredCoursework := coursework
 		if !c.Bool("all") {
-			filteredCoursework = nil
+			filteredCoursework = []api.CourseWork{}
 			for _, cw := range coursework {
 				if cw.State == "PUBLISHED" {
 					filteredCoursework = append(filteredCoursework, cw)

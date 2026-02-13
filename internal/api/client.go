@@ -112,10 +112,37 @@ func IsRateLimited(err error) bool {
 	return false
 }
 
+type GoogleAPIErrorResponse struct {
+	Error GoogleAPIError `json:"error"`
+}
+
+type GoogleAPIError struct {
+	Code    int    `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
+}
+
+func (e *GoogleAPIError) toAPIError() *APIError {
+	return &APIError{
+		Code:    e.Code,
+		Message: e.Message,
+		Status:  e.Status,
+	}
+}
+
 func (c *Client) parseError(resp *http.Response) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var wrappedErr GoogleAPIErrorResponse
+	if err := json.Unmarshal(body, &wrappedErr); err == nil && wrappedErr.Error.Code != 0 {
+		apiErr := wrappedErr.Error.toAPIError()
+		if apiErr.Code == 0 {
+			apiErr.Code = resp.StatusCode
+		}
+		return apiErr
 	}
 
 	var apiErr APIError

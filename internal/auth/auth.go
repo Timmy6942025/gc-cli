@@ -3,6 +3,9 @@ package auth
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -44,34 +47,106 @@ func NewConfig(clientID, clientSecret, tokenFile string) *Config {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  "http://localhost",
-		TokenFile:   tokenFile,
+		TokenFile:    tokenFile,
 	}
 }
 
 func BrowserFlow(ctx context.Context, cfg *Config) (*oauth2.Token, error) {
+	token, err := tryAutoCallback(ctx, cfg)
+	if err == nil {
+		return token, nil
+	}
+	fmt.Println("Using fallback method...")
+	return manualFlow(ctx, cfg)
+}
+
+func tryAutoCallback(ctx context.Context, cfg *Config) (*oauth2.Token, error) {
+	oauthCfg := cfg.OAuth2Config()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return nil, fmt.Errorf("listen: %w", err)
+	}
+	defer listener.Close()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	redirectURL := fmt.Sprintf("http://localhost:%d", port)
+
+	oauthCfg.RedirectURL = redirectURL
+
+	state := fmt.Sprintf("gc-cli-%d", time.Now().UnixNano())
+	authURL := oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOffline)
+
+	codeChan := make(chan string, 1)
+	errChan := make(chan error, 1)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("error") != "" {
+			errChan <- fmt.Errorf("oauth error: %s", q.Get("error_description"))
+			return
+		}
+		if q.Get("state") != state {
+			errChan <- fmt.Errorf("state mismatch")
+			return
+		}
+		code := q.Get("code")
+		if code == "" {
+			errChan <- fmt.Errorf("no code")
+			return
+		}
+		codeChan <- code
+		io.WriteString(w, "<html><body><h1>✓ Success! You can close this window.</h1></body></html>")
+	})
+
+	server := &http.Server{Addr: redirectURL, Handler: mux}
+	go server.Serve(listener)
+
+	fmt.Println("🌐 Opening browser...")
+	_ = openBrowser(authURL)
+	fmt.Printf("📋 Or visit: %s\n", authURL)
+	fmt.Println("⏳ Waiting...")
+
+	select {
+	case code := <-codeChan:
+		server.Close()
+		token, err := oauthCfg.Exchange(ctx, code)
+		if err != nil {
+			return nil, fmt.Errorf("exchange: %w", err)
+		}
+		fmt.Println("✓ Logged in!")
+		return token, nil
+	case err := <-errChan:
+		server.Close()
+		return nil, err
+	case <-time.After(60 * time.Second):
+		server.Close()
+		return nil, fmt.Errorf("timeout")
+	}
+}
+
+func manualFlow(ctx context.Context, cfg *Config) (*oauth2.Token, error) {
 	oauthCfg := cfg.OAuth2Config()
 
 	state := fmt.Sprintf("gc-cli-%d", time.Now().UnixNano())
 	authURL := oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOffline)
 
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║           GOOGLE CLASSROOM AUTHENTICATION              ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝")
+	fmt.Println("╔═══════════════════════════════════════════╗")
+	fmt.Println("║     GOOGLE CLASSROOM AUTHENTICATION       ║")
+	fmt.Println("╚═══════════════════════════════════════════╝")
 	fmt.Println()
-	fmt.Println("1. Open this URL in your browser:")
-	fmt.Printf("\n  %s\n\n", authURL)
-	fmt.Println("2. After signing in, you'll be redirected to a page that says")
-	fmt.Println("   'This site can't be reached' - that's OK!")
+	fmt.Println("1. Open this URL:")
+	fmt.Printf("   %s\n", authURL)
 	fmt.Println()
-	fmt.Println("3. Copy the ENTIRE URL from your browser address bar")
-	fmt.Println("   (it will look like: http://localhost/?code=...&state=...)")
+	fmt.Println("2. Sign in and authorize")
 	fmt.Println()
-	fmt.Print("4. Paste the URL here: ")
+	fmt.Print("3. Paste the URL you're redirected to: ")
 
 	var redirectURL string
 	fmt.Scanln(&redirectURL)
 	if redirectURL == "" {
-		return nil, fmt.Errorf("no URL provided")
+		return nil, fmt.Errorf("no URL")
 	}
 
 	parsed, err := url.Parse(redirectURL)
@@ -81,15 +156,15 @@ func BrowserFlow(ctx context.Context, cfg *Config) (*oauth2.Token, error) {
 
 	code := parsed.Query().Get("code")
 	if code == "" {
-		return nil, fmt.Errorf("no authorization code found in URL")
+		return nil, fmt.Errorf("no code in URL")
 	}
 
 	token, err := oauthCfg.Exchange(ctx, code)
 	if err != nil {
-		return nil, fmt.Errorf("failed to exchange code for token: %w", err)
+		return nil, fmt.Errorf("exchange failed: %w", err)
 	}
 
-	fmt.Println("✓ Authentication successful!")
+	fmt.Println("✓ Logged in!")
 	return token, nil
 }
 
@@ -114,7 +189,7 @@ func openBrowser(url string) error {
 	}
 
 	if cmd == nil {
-		return fmt.Errorf("no suitable browser found")
+		return fmt.Errorf("no browser")
 	}
 
 	_ = cmd.Start()

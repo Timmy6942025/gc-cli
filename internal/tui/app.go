@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -66,6 +67,7 @@ type Model struct {
 	SelectedCoursework   int
 	SelectedGrade        int
 	SelectedAnnouncement int
+	SelectedCourse       int
 
 	SelectedCourseID   string
 	SelectedCourseName string
@@ -410,7 +412,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleContentKey(msg)
 
 	case ViewAuthRequired:
-		if key.Matches(msg, keys.Select) {
+		if key.Matches(msg, keys.Select) || key.Matches(msg, keys.Back) {
 			m.PreviousView = m.CurrentView
 			m.CurrentView = ViewMainMenu
 		}
@@ -450,6 +452,12 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleCoursePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(msg, keys.Back) {
+		m.CurrentView = ViewMainMenu
+		m.SelectedCourseID = ""
+		return m, nil
+	}
+
 	if key.Matches(msg, keys.Up) {
 		if m.CoursePickerIndex > 0 {
 			m.CoursePickerIndex--
@@ -534,7 +542,7 @@ func (m Model) selectMenuItem() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleContentKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.CurrentView == ViewCoursework || m.CurrentView == ViewGrades || m.CurrentView == ViewAnnouncements {
+	if m.CurrentView == ViewCourses || m.CurrentView == ViewCoursework || m.CurrentView == ViewGrades || m.CurrentView == ViewAnnouncements {
 		if key.Matches(msg, keys.Up) {
 			m.scrollUp()
 			return m, nil
@@ -581,6 +589,11 @@ func (m Model) handleContentKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) scrollUp() {
 	switch m.CurrentView {
+	case ViewCourses:
+		if m.SelectedCourse > 0 {
+			m.SelectedCourse--
+			m.Viewport.SetContent(m.renderCourses())
+		}
 	case ViewCoursework:
 		if m.SelectedCoursework > 0 {
 			m.SelectedCoursework--
@@ -601,6 +614,11 @@ func (m *Model) scrollUp() {
 
 func (m *Model) scrollDown() {
 	switch m.CurrentView {
+	case ViewCourses:
+		if m.SelectedCourse < len(m.Courses)-1 {
+			m.SelectedCourse++
+			m.Viewport.SetContent(m.renderCourses())
+		}
 	case ViewCoursework:
 		if m.SelectedCoursework < len(m.Coursework)-1 {
 			m.SelectedCoursework++
@@ -867,9 +885,13 @@ func (m *Model) loadAnnouncements() {
 
 	m.Announcements = make([]AnnouncementItem, 0, len(announcements))
 	for _, a := range announcements {
+		title := a.Text
+		if len(title) > 50 {
+			title = title[:50] + "..."
+		}
 		m.Announcements = append(m.Announcements, AnnouncementItem{
 			CourseName:    m.SelectedCourseName,
-			AnnounceTitle: a.Text,
+			AnnounceTitle: title,
 			Text:          a.Text,
 			PostedAt:      a.CreationTime.Format("2006-01-02"),
 		})
@@ -912,6 +934,13 @@ func (m Model) View() string {
 		}
 
 	case ViewAnnouncements:
+		if m.IsLoading {
+			content = m.renderLoading()
+		} else {
+			content = m.Viewport.View()
+		}
+
+	case ViewCoursePicker:
 		if m.IsLoading {
 			content = m.renderLoading()
 		} else {
@@ -994,6 +1023,24 @@ func (m Model) renderCourses() string {
 	output += sectionTitleStyle.Width(m.Width-8).Render("Your Classes") + "\n\n"
 
 	for i, course := range m.Courses {
+		isSelected := i == m.SelectedCourse
+
+		var itemStyle lipgloss.Style
+		if isSelected {
+			itemStyle = lipgloss.NewStyle().
+				Background(bgHighlight).
+				Foreground(textPrimary).
+				Padding(1, 1).
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(accentPrimary).
+				Width(m.Width - 8)
+		} else {
+			itemStyle = lipgloss.NewStyle().
+				Foreground(textPrimary).
+				Padding(1, 1).
+				Width(m.Width - 8)
+		}
+
 		courseNum := lipgloss.NewStyle().
 			Foreground(accentPrimary).
 			Bold(true).
@@ -1016,7 +1063,8 @@ func (m Model) renderCourses() string {
 			Foreground(textMuted).
 			Render("📍 " + course.Room)
 
-		output += fmt.Sprintf("%s %s (%s)\n%s\n%s\n\n", courseNum, courseName, section, desc, room)
+		content := fmt.Sprintf("%s %s (%s)\n%s\n%s", courseNum, courseName, section, desc, room)
+		output += itemStyle.Render(content) + "\n\n"
 	}
 
 	return contentStyle.Width(m.Width - 4).Render(output)
@@ -1220,7 +1268,9 @@ func (m Model) renderGrades() string {
 			Render(grade.CourseName)
 
 		scoreColor := textPrimary
-		if grade.Score == grade.MaxScore {
+		scoreVal, _ := strconv.ParseFloat(grade.Score, 64)
+		maxScoreVal, _ := strconv.ParseFloat(grade.MaxScore, 64)
+		if scoreVal > 0 && scoreVal == maxScoreVal {
 			scoreColor = successColor
 		} else if grade.Score == "0" || grade.Score == "" {
 			scoreColor = errorColor

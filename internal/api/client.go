@@ -127,6 +127,10 @@ func (c *Client) parseError(resp *http.Response) error {
 		apiErr.Code = resp.StatusCode
 	}
 
+	if apiErr.Message == "" {
+		apiErr.Message = string(body)
+	}
+
 	return &apiErr
 }
 

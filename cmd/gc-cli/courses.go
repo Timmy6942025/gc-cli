@@ -50,7 +50,7 @@ func handleCoursesList(cfg *config.Config) func(*cli.Context) error {
 
 		courses, _, err := client.ListCourses(ctx, 100)
 		if err != nil {
-			return fmt.Errorf("failed to list courses: %w", err)
+			return fmt.Errorf("failed to list courses: %w (debug: %+v)", err, err)
 		}
 
 		var studentCourses []api.Course

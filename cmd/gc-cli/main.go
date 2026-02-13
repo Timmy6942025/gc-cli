@@ -122,17 +122,6 @@ func main() {
 }
 
 func handleLogin(ctx context.Context, cfg *config.Config) error {
-	if cfg.Auth.ClientID == "" || cfg.Auth.ClientSecret == "" {
-		fmt.Println("OAuth credentials not configured.")
-		fmt.Printf("Please configure your OAuth credentials in %s\n", cfg.ConfigPath)
-		fmt.Printf("Or visit: %s\n", auth.GetConfigURL())
-		fmt.Println("\nRequired configuration:")
-		fmt.Println("  auth:")
-		fmt.Println("    client_id: YOUR_CLIENT_ID")
-		fmt.Println("    client_secret: YOUR_CLIENT_SECRET")
-		return nil
-	}
-
 	authCfg := auth.NewConfig(cfg.Auth.ClientID, cfg.Auth.ClientSecret, cfg.Auth.TokenFile)
 
 	fmt.Println("Starting OAuth authentication flow...")

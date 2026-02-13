@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/viper"
+	"github.com/timboy697/gc-cli/internal/auth"
 )
 
 type Config struct {
@@ -27,11 +28,14 @@ type ClassroomConfig struct {
 func Default() *Config {
 	homeDir, _ := os.UserHomeDir()
 	configDir := filepath.Join(homeDir, ".config", "gc-cli")
+	defaultAuth := auth.DefaultAuthConfig()
 
 	return &Config{
 		ConfigPath: filepath.Join(configDir, "config.yaml"),
 		Auth: AuthConfig{
-			TokenFile: filepath.Join(configDir, "token.json"),
+			ClientID:     defaultAuth.ClientID,
+			ClientSecret: defaultAuth.ClientSecret,
+			TokenFile:    filepath.Join(configDir, "token.json"),
 		},
 		GoogleClassroom: ClassroomConfig{},
 	}
@@ -43,6 +47,8 @@ func Load() (*Config, error) {
 	viper.SetConfigType("yaml")
 	viper.SetConfigFile(cfg.ConfigPath)
 
+	viper.SetDefault("auth.client_id", cfg.Auth.ClientID)
+	viper.SetDefault("auth.client_secret", cfg.Auth.ClientSecret)
 	viper.SetDefault("auth.token_file", cfg.Auth.TokenFile)
 
 	if err := viper.ReadInConfig(); err != nil {

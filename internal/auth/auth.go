@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,6 +22,14 @@ var Scopes = []string{
 	"https://www.googleapis.com/auth/classroom.coursework.students",
 	"https://www.googleapis.com/auth/classroom.announcements.readonly",
 }
+
+const (
+	envClientID     = "GC_CLI_CLIENT_ID"
+	envClientSecret = "GC_CLI_CLIENT_SECRET"
+
+	DefaultClientID     = "597878429548-jc1e74sbsk9fhqg6fbivmclrnq70hs3t.apps.googleusercontent.com"
+	DefaultClientSecret = "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"
+)
 
 type Config struct {
 	ClientID     string
@@ -217,4 +226,23 @@ func GetConfigURL() string {
 
 func Configured(cfg *Config) bool {
 	return cfg.ClientID != "" && cfg.ClientSecret != ""
+}
+
+func DefaultAuthConfig() *Config {
+	homeDir, _ := os.UserHomeDir()
+	tokenFile := filepath.Join(homeDir, ".config", "gc-cli", "token.json")
+	clientID := os.Getenv(envClientID)
+	clientSecret := os.Getenv(envClientSecret)
+	if clientID == "" {
+		clientID = DefaultClientID
+	}
+	if clientSecret == "" {
+		clientSecret = DefaultClientSecret
+	}
+	return &Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  "http://localhost",
+		TokenFile:    tokenFile,
+	}
 }

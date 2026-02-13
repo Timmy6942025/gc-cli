@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -10,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/timboy697/gc-cli/internal/api"
 	"github.com/timboy697/gc-cli/internal/auth"
 	"github.com/timboy697/gc-cli/internal/config"
 
@@ -24,6 +26,7 @@ const (
 	ViewCoursework
 	ViewGrades
 	ViewAnnouncements
+	ViewCoursePicker
 	ViewLoading
 	ViewError
 	ViewAuthRequired
@@ -61,6 +64,12 @@ type Model struct {
 	Announcements []AnnouncementItem
 
 	SelectedCoursework int
+
+	SelectedCourseID   string
+	SelectedCourseName string
+	CoursePickerIndex  int
+
+	APIClient *api.Client
 
 	Viewport viewport.Model
 
@@ -288,12 +297,12 @@ var (
 			Foreground(textPrimary)
 )
 
-func New(cfg *config.Config) Model {
+func New(cfg *config.Config, client *api.Client) Model {
 	menuItems := []MenuItem{
-		{"Courses", "View your enrolled courses", ViewCourses},
-		{"Coursework", "View assignments and deadlines", ViewCoursework},
+		{"Classes", "View your enrolled classes", ViewCourses},
+		{"Classwork", "View assignments and deadlines", ViewCoursework},
 		{"Grades", "Check your grades and scores", ViewGrades},
-		{"Announcements", "View course announcements", ViewAnnouncements},
+		{"Announcements", "Class announcements", ViewAnnouncements},
 		{"Quit", "Exit the application", ViewMainMenu},
 	}
 
@@ -321,6 +330,7 @@ func New(cfg *config.Config) Model {
 		Menu:         menuList,
 		SelectedMenu: 0,
 		Config:       cfg,
+		APIClient:    client,
 		IsLoading:    false,
 		LoadingMsg:   "Loading...",
 		Width:        80,
@@ -391,6 +401,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ViewMainMenu:
 		return m.handleMainMenuKey(msg)
 
+	case ViewCoursePicker:
+		return m.handleCoursePickerKey(msg)
+
 	case ViewCourses, ViewCoursework, ViewGrades, ViewAnnouncements:
 		return m.handleContentKey(msg)
 
@@ -432,6 +445,54 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) handleCoursePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(msg, keys.Up) {
+		if m.CoursePickerIndex > 0 {
+			m.CoursePickerIndex--
+		}
+		m.Viewport.SetContent(m.renderCoursePicker())
+		return m, nil
+	}
+
+	if key.Matches(msg, keys.Down) {
+		if m.CoursePickerIndex < len(m.Courses)-1 {
+			m.CoursePickerIndex++
+		}
+		m.Viewport.SetContent(m.renderCoursePicker())
+		return m, nil
+	}
+
+	if key.Matches(msg, keys.Select) {
+		m.handleCoursePickerSelect()
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func (m *Model) handleCoursePickerSelect() {
+	if m.CoursePickerIndex < 0 || m.CoursePickerIndex >= len(m.Courses) {
+		return
+	}
+
+	m.SelectedCourseID = m.Courses[m.CoursePickerIndex].ID
+	m.SelectedCourseName = m.Courses[m.CoursePickerIndex].Name
+
+	switch m.PreviousView {
+	case ViewCoursework:
+		m.CurrentView = ViewCoursework
+		m.loadCoursework()
+	case ViewGrades:
+		m.CurrentView = ViewGrades
+		m.loadGrades()
+	case ViewAnnouncements:
+		m.CurrentView = ViewAnnouncements
+		m.loadAnnouncements()
+	default:
+		m.CurrentView = ViewMainMenu
+	}
 }
 
 func (m Model) selectMenuItem() (tea.Model, tea.Cmd) {
@@ -743,12 +804,12 @@ func (m Model) renderCourses() string {
 				Foreground(textMuted).
 				Align(lipgloss.Center).
 				Width(m.Width-8).
-				Render("No courses found"),
+				Render("No classes found"),
 		)
 	}
 
 	var output string
-	output += sectionTitleStyle.Width(m.Width-8).Render("Your Courses") + "\n\n"
+	output += sectionTitleStyle.Width(m.Width-8).Render("Your Classes") + "\n\n"
 
 	for i, course := range m.Courses {
 		courseNum := lipgloss.NewStyle().
@@ -779,6 +840,68 @@ func (m Model) renderCourses() string {
 	return contentStyle.Width(m.Width - 4).Render(output)
 }
 
+func (m Model) renderCoursePicker() string {
+	if len(m.Courses) == 0 {
+		return contentStyle.Width(m.Width - 4).Height(m.Height - 6).Render(
+			"\n\n\n" + lipgloss.NewStyle().
+				Foreground(textMuted).
+				Align(lipgloss.Center).
+				Width(m.Width-8).
+				Render("No classes found"),
+		)
+	}
+
+	var output string
+	output += sectionTitleStyle.Width(m.Width-8).Render("Select a Class") + "\n\n"
+
+	for i, course := range m.Courses {
+		isSelected := i == m.CoursePickerIndex
+
+		var itemStyle lipgloss.Style
+		if isSelected {
+			itemStyle = lipgloss.NewStyle().
+				Background(bgHighlight).
+				Foreground(textPrimary).
+				Padding(1, 1).
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(accentPrimary).
+				Width(m.Width - 8)
+		} else {
+			itemStyle = lipgloss.NewStyle().
+				Foreground(textPrimary).
+				Padding(1, 1).
+				Width(m.Width - 8)
+		}
+
+		courseNum := lipgloss.NewStyle().
+			Foreground(accentPrimary).
+			Bold(true).
+			Render(fmt.Sprintf("%d.", i+1))
+
+		courseName := lipgloss.NewStyle().
+			Foreground(textPrimary).
+			Bold(true).
+			Render(course.Name)
+
+		section := lipgloss.NewStyle().
+			Foreground(accentTertiary).
+			Render(course.Section)
+
+		content := fmt.Sprintf("%s %s (%s)", courseNum, courseName, section)
+
+		output += itemStyle.Render(content) + "\n\n"
+	}
+
+	hint := lipgloss.NewStyle().
+		Foreground(textMuted).
+		Width(m.Width - 8).
+		Render("↑↓: select  •  enter: confirm  •  esc: back")
+
+	output += "\n" + hint
+
+	return contentStyle.Width(m.Width - 4).Render(output)
+}
+
 func (m Model) renderCoursework() string {
 	if len(m.Coursework) == 0 {
 		return contentStyle.Width(m.Width - 4).Height(m.Height - 6).Render(
@@ -791,7 +914,7 @@ func (m Model) renderCoursework() string {
 	}
 
 	var output string
-	output += sectionTitleStyle.Width(m.Width-8).Render("Your Assignments") + "\n\n"
+	output += sectionTitleStyle.Width(m.Width-8).Render("Your Classwork") + "\n\n"
 
 	output += lipgloss.NewStyle().
 		Foreground(textMuted).
@@ -1060,6 +1183,8 @@ func (m Model) renderStatusBar() string {
 	switch m.CurrentView {
 	case ViewMainMenu:
 		status = "↑↓/jk: navigate  •  enter/l: select  •  q: quit"
+	case ViewCoursePicker:
+		status = "↑↓/jk: select  •  enter: confirm  •  esc: back"
 	case ViewCourses, ViewCoursework, ViewGrades, ViewAnnouncements:
 		status = "↑↓/jk: scroll  •  r: refresh  •  esc/q: back"
 	case ViewAuthRequired:
@@ -1094,8 +1219,19 @@ func (m Model) renderStatusBar() string {
 }
 
 func Run(cfg *config.Config) error {
+	token, err := auth.TokenFromFile(cfg.Auth.TokenFile)
+	if err != nil {
+		return fmt.Errorf("not authenticated: run 'gc-cli auth login' first")
+	}
+
+	authCfg := auth.NewConfig(cfg.Auth.ClientID, cfg.Auth.ClientSecret, cfg.Auth.TokenFile)
+	client, err := api.NewClientFromToken(context.Background(), authCfg.OAuth2Config(), token)
+	if err != nil {
+		return fmt.Errorf("failed to create API client: %w", err)
+	}
+
 	p := tea.NewProgram(
-		New(cfg),
+		New(cfg, client),
 		tea.WithAltScreen(),
 	)
 

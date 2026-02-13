@@ -1,11 +1,11 @@
 # gc-cli
 
-Google Classroom CLI for students - manage your courses, coursework, and grades from the terminal.
+Google Classroom CLI for students - manage your classes, classwork, and grades from the terminal.
 
 ## Features
 
-- List and view courses
-- List coursework and assignments
+- List and view classes
+- List classwork and assignments
 - View grades
 - View announcements
 - Submit assignments
@@ -57,11 +57,11 @@ This opens a browser window for Google sign-in.
 # Check auth status
 gc-cli auth status
 
-# List your courses
-gc-cli courses list
+# List your classes
+gc-cli classes list
 
-# List coursework for a course
-gc-cli coursework list --course COURSE_ID
+# List classwork for a class
+gc-cli classwork list --course COURSE_ID
 
 # List grades
 gc-cli grades list --course COURSE_ID
@@ -70,7 +70,7 @@ gc-cli grades list --course COURSE_ID
 gc-cli announcements list --course COURSE_ID
 
 # Submit an assignment
-gc-cli submit --course COURSE_ID --coursework COURSEWORK_ID --file submission.pdf
+gc-cli submit --course COURSE_ID --assignment ASSIGNMENT_ID --file submission.pdf
 
 # Launch interactive TUI
 gc-cli tui
@@ -82,10 +82,10 @@ gc-cli tui
 |---------|-------------|
 | `auth login` | Authenticate with Google |
 | `auth status` | Check authentication status |
-| `courses list` | List all enrolled courses |
-| `coursework list` | List coursework for a course |
-| `grades list` | List grades for a course |
-| `announcements list` | List announcements for a course |
+| `classes list` | List all enrolled classes |
+| `classwork list` | List classwork for a class |
+| `grades list` | List grades for a class |
+| `announcements list` | List announcements for a class |
 | `submit` | Submit an assignment |
 | `tui` | Launch interactive TUI |
 

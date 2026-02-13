@@ -592,47 +592,63 @@ func (m *Model) loadCourses() {
 	}
 
 	m.IsLoading = true
-	m.LoadingMsg = "Loading courses..."
+	m.LoadingMsg = "Loading classes..."
 
-	time.Sleep(500 * time.Millisecond)
+	// Use real API
+	courses, _, err := m.APIClient.ListCourses(context.Background(), 100)
+	if err != nil {
+		m.IsLoading = false
+		m.ErrorMsg = fmt.Sprintf("Failed to load classes: %v", err)
+		m.CurrentView = ViewError
+		m.updateViewport(m.renderError())
+		return
+	}
 
-	m.Courses = []CourseItem{
-		{ID: "course-1", Name: "CS 101: Introduction to Computer Science", Section: "Fall 2024", Desc: "Fundamental concepts of programming", Room: "Building A, Room 101"},
-		{ID: "course-2", Name: "MATH 201: Linear Algebra", Section: "Fall 2024", Desc: "Vector spaces, linear transformations", Room: "Building B, Room 205"},
-		{ID: "course-3", Name: "PHYS 150: General Physics I", Section: "Fall 2024", Desc: "Mechanics, thermodynamics, waves", Room: "Science Building, Room 302"},
+	m.Courses = make([]CourseItem, 0, len(courses))
+	for _, c := range courses {
+		if c.CourseState == "ACTIVE" {
+			m.Courses = append(m.Courses, CourseItem{
+				ID:      c.ID,
+				Name:    c.Name,
+				Section: c.Section,
+				Desc:    c.Description,
+				Room:    c.Room,
+			})
+		}
 	}
 
 	m.IsLoading = false
 	m.updateViewport(m.renderCourses())
 }
 
-func (m *Model) loadCoursework() {
-	if m.AuthState != AuthAuthenticated {
-		m.CurrentView = ViewAuthRequired
-		m.ErrorMsg = "Please authenticate first using 'gc-cli auth login'"
+func (m *Model) loadCoursesForPicker() {
+	m.IsLoading = true
+	m.LoadingMsg = "Loading classes..."
+
+	courses, _, err := m.APIClient.ListCourses(context.Background(), 100)
+	if err != nil {
+		m.IsLoading = false
+		m.ErrorMsg = fmt.Sprintf("Failed to load classes: %v", err)
+		m.CurrentView = ViewError
+		m.updateViewport(m.renderError())
 		return
 	}
 
-	m.IsLoading = true
-	m.LoadingMsg = "Loading coursework..."
-
-	time.Sleep(500 * time.Millisecond)
-
-	m.Coursework = []CourseworkItem{
-		{ID: "cw-1", CourseID: "course-1", CourseName: "CS 101", AssignTitle: "Programming Assignment 1", Desc: "Implement a basic calculator", State: "PUBLISHED", DueDate: "2024-09-15", DueTime: "23:59", Points: 100, Status: StatusReturned, WorkType: "ASSIGNMENT"},
-		{ID: "cw-2", CourseID: "course-1", CourseName: "CS 101", AssignTitle: "Quiz 1: Variables and Data Types", Desc: "Online quiz on data types", State: "PUBLISHED", DueDate: "2024-09-20", DueTime: "23:59", Points: 20, Status: StatusReturned, WorkType: "QUIZ"},
-		{ID: "cw-3", CourseID: "course-1", CourseName: "CS 101", AssignTitle: "Programming Assignment 2", Desc: "OOP concepts", State: "PUBLISHED", DueDate: "2024-10-15", DueTime: "23:59", Points: 100, Status: StatusTurnedIn, WorkType: "ASSIGNMENT"},
-		{ID: "cw-4", CourseID: "course-2", CourseName: "MATH 201", AssignTitle: "Homework 1: Vectors", Desc: "Problems from Chapter 1", State: "PUBLISHED", DueDate: "2024-09-18", DueTime: "23:59", Points: 50, Status: StatusReturned, WorkType: "ASSIGNMENT"},
-		{ID: "cw-5", CourseID: "course-2", CourseName: "MATH 201", AssignTitle: "Homework 2: Matrices", Desc: "Problems from Chapter 2", State: "PUBLISHED", DueDate: "2024-09-25", DueTime: "23:59", Points: 50, Status: StatusTurnedIn, WorkType: "ASSIGNMENT"},
-		{ID: "cw-6", CourseID: "course-3", CourseName: "PHYS 150", AssignTitle: "Lab Report 1: Motion", Desc: "Motion experiment writeup", State: "PUBLISHED", DueDate: "2024-09-22", DueTime: "17:00", Points: 50, Status: StatusReturned, WorkType: "ASSIGNMENT"},
-		{ID: "cw-7", CourseID: "course-2", CourseName: "MATH 201", AssignTitle: "Midterm Exam", Desc: "Covers chapters 1-3", State: "PUBLISHED", DueDate: "2024-10-01", DueTime: "14:00", Points: 100, Status: StatusOverdue, WorkType: "EXAM"},
-		{ID: "cw-8", CourseID: "course-1", CourseName: "CS 101", AssignTitle: "Lab 3: Debugging", Desc: "Debugging practice", State: "DRAFT", DueDate: "", DueTime: "", Points: 25, Status: StatusDraft, WorkType: "ASSIGNMENT"},
+	m.Courses = make([]CourseItem, 0, len(courses))
+	for _, c := range courses {
+		if c.CourseState == "ACTIVE" {
+			m.Courses = append(m.Courses, CourseItem{
+				ID:      c.ID,
+				Name:    c.Name,
+				Section: c.Section,
+				Desc:    c.Description,
+				Room:    c.Room,
+			})
+		}
 	}
 
-	m.SelectedCoursework = 0
-	m.sortCourseworkByDueDate()
 	m.IsLoading = false
-	m.updateViewport(m.renderCoursework())
+	m.updateViewport(m.renderCoursePicker())
 }
 
 func (m *Model) sortCourseworkByDueDate() {
@@ -650,6 +666,72 @@ func (m *Model) sortCourseworkByDueDate() {
 	})
 }
 
+func (m *Model) loadCoursework() {
+	if m.AuthState != AuthAuthenticated {
+		m.CurrentView = ViewAuthRequired
+		m.ErrorMsg = "Please authenticate first using 'gc-cli auth login'"
+		return
+	}
+
+	if m.SelectedCourseID == "" {
+		m.CurrentView = ViewCoursePicker
+		m.loadCoursesForPicker()
+		return
+	}
+
+	m.IsLoading = true
+	m.LoadingMsg = "Loading classwork..."
+
+	coursework, _, err := m.APIClient.ListCourseWork(context.Background(), m.SelectedCourseID, 100)
+	if err != nil {
+		m.IsLoading = false
+		m.ErrorMsg = fmt.Sprintf("Failed to load classwork: %v", err)
+		m.CurrentView = ViewError
+		m.updateViewport(m.renderError())
+		return
+	}
+
+	m.Coursework = make([]CourseworkItem, 0, len(coursework))
+	for _, cw := range coursework {
+		if cw.State == "PUBLISHED" {
+			status := StatusPending
+			if cw.DueDate != nil {
+				dueDate := time.Date(cw.DueDate.Year, time.Month(cw.DueDate.Month), cw.DueDate.Day, 23, 59, 59, 0, time.UTC)
+				if time.Now().After(dueDate) {
+					status = StatusOverdue
+				}
+			}
+
+			var dueDateStr, dueTimeStr string
+			if cw.DueDate != nil {
+				dueDateStr = fmt.Sprintf("%d/%02d/%02d", cw.DueDate.Year, cw.DueDate.Month, cw.DueDate.Day)
+			}
+			if cw.DueTime != nil {
+				dueTimeStr = fmt.Sprintf("%02d:%02d", cw.DueTime.Hours, cw.DueTime.Minutes)
+			}
+
+			m.Coursework = append(m.Coursework, CourseworkItem{
+				ID:          cw.ID,
+				CourseID:    m.SelectedCourseID,
+				CourseName:  m.SelectedCourseName,
+				AssignTitle: cw.Title,
+				Desc:        cw.Description,
+				State:       cw.State,
+				DueDate:     dueDateStr,
+				DueTime:     dueTimeStr,
+				Points:      cw.MaxPoints,
+				Status:      status,
+				WorkType:    cw.WorkType,
+			})
+		}
+	}
+
+	m.SelectedCoursework = 0
+	m.sortCourseworkByDueDate()
+	m.IsLoading = false
+	m.updateViewport(m.renderCoursework())
+}
+
 func (m *Model) loadGrades() {
 	if m.AuthState != AuthAuthenticated {
 		m.CurrentView = ViewAuthRequired
@@ -657,17 +739,48 @@ func (m *Model) loadGrades() {
 		return
 	}
 
+	if m.SelectedCourseID == "" {
+		m.CurrentView = ViewCoursePicker
+		m.loadCoursesForPicker()
+		return
+	}
+
 	m.IsLoading = true
 	m.LoadingMsg = "Loading grades..."
 
-	time.Sleep(500 * time.Millisecond)
+	coursework, _, err := m.APIClient.ListCourseWork(context.Background(), m.SelectedCourseID, 100)
+	if err != nil {
+		m.IsLoading = false
+		m.ErrorMsg = fmt.Sprintf("Failed to load grades: %v", err)
+		m.CurrentView = ViewError
+		m.updateViewport(m.renderError())
+		return
+	}
 
-	m.Grades = []GradeItem{
-		{CourseName: "CS 101", Assignment: "Programming Assignment 1", Score: "95", MaxScore: "100", SubmittedAt: "2024-09-15"},
-		{CourseName: "CS 101", Assignment: "Quiz 1", Score: "18", MaxScore: "20", SubmittedAt: "2024-09-20"},
-		{CourseName: "MATH 201", Assignment: "Homework 1", Score: "90", MaxScore: "100", SubmittedAt: "2024-09-18"},
-		{CourseName: "MATH 201", Assignment: "Midterm Exam", Score: "82", MaxScore: "100", SubmittedAt: "2024-10-10"},
-		{CourseName: "PHYS 150", Assignment: "Lab Report 1", Score: "48", MaxScore: "50", SubmittedAt: "2024-09-22"},
+	m.Grades = make([]GradeItem, 0)
+	for _, cw := range coursework {
+		if cw.State != "PUBLISHED" {
+			continue
+		}
+		submission, err := m.APIClient.GetMySubmission(context.Background(), m.SelectedCourseID, cw.ID)
+		if err != nil {
+			continue
+		}
+
+		if submission.AssignedGrade > 0 || submission.DraftGrade > 0 {
+			grade := submission.AssignedGrade
+			if grade == 0 && submission.DraftGrade > 0 {
+				grade = submission.DraftGrade
+			}
+
+			m.Grades = append(m.Grades, GradeItem{
+				CourseName:  m.SelectedCourseName,
+				Assignment:  cw.Title,
+				Score:       fmt.Sprintf("%.1f", grade),
+				MaxScore:    fmt.Sprintf("%d", cw.MaxPoints),
+				SubmittedAt: submission.SubmittedTimestamp.Format("2006-01-02"),
+			})
+		}
 	}
 
 	m.IsLoading = false
@@ -681,16 +794,32 @@ func (m *Model) loadAnnouncements() {
 		return
 	}
 
+	if m.SelectedCourseID == "" {
+		m.CurrentView = ViewCoursePicker
+		m.loadCoursesForPicker()
+		return
+	}
+
 	m.IsLoading = true
 	m.LoadingMsg = "Loading announcements..."
 
-	time.Sleep(500 * time.Millisecond)
+	announcements, _, err := m.APIClient.ListAnnouncements(context.Background(), m.SelectedCourseID, 100)
+	if err != nil {
+		m.IsLoading = false
+		m.ErrorMsg = fmt.Sprintf("Failed to load announcements: %v", err)
+		m.CurrentView = ViewError
+		m.updateViewport(m.renderError())
+		return
+	}
 
-	m.Announcements = []AnnouncementItem{
-		{CourseName: "CS 101", AnnounceTitle: "Assignment 2 Posted", Text: "The second programming assignment has been posted. Due October 15th.", PostedAt: "2024-10-01"},
-		{CourseName: "MATH 201", AnnounceTitle: "Office Hours Change", Text: "Office hours this week will be Thursday 2-4 PM.", PostedAt: "2024-10-02"},
-		{CourseName: "PHYS 150", AnnounceTitle: "Lab Safety Reminder", Text: "Please review lab safety procedures before your session.", PostedAt: "2024-09-28"},
-		{CourseName: "CS 101", AnnounceTitle: "Guest Lecture Next Week", Text: "Guest speaker from Google next Tuesday.", PostedAt: "2024-10-03"},
+	m.Announcements = make([]AnnouncementItem, 0, len(announcements))
+	for _, a := range announcements {
+		m.Announcements = append(m.Announcements, AnnouncementItem{
+			CourseName:    m.SelectedCourseName,
+			AnnounceTitle: a.Text,
+			Text:          a.Text,
+			PostedAt:      a.CreationTime.Format("2006-01-02"),
+		})
 	}
 
 	m.IsLoading = false

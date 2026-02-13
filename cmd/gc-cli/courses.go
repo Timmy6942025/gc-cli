@@ -15,12 +15,13 @@ import (
 
 func CoursesCmd(cfg *config.Config) *cli.Command {
 	return &cli.Command{
-		Name:  "courses",
-		Usage: "list your enrolled courses",
+		Name:    "courses",
+		Aliases: []string{"classes"},
+		Usage:   "list your enrolled classes",
 		Subcommands: []*cli.Command{
 			{
 				Name:   "list",
-				Usage:  "list all enrolled courses",
+				Usage:  "list all enrolled classes",
 				Action: handleCoursesList(cfg),
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
@@ -50,7 +51,7 @@ func handleCoursesList(cfg *config.Config) func(*cli.Context) error {
 
 		courses, _, err := client.ListCourses(ctx, 100)
 		if err != nil {
-			return fmt.Errorf("failed to list courses: %w (debug: %+v)", err, err)
+			return fmt.Errorf("failed to list classes: %w (debug: %+v)", err, err)
 		}
 
 		var studentCourses []api.Course
@@ -87,7 +88,7 @@ var (
 
 func outputTable(courses []api.Course) error {
 	if len(courses) == 0 {
-		fmt.Println("No enrolled courses found.")
+		fmt.Println("No enrolled classes found.")
 		return nil
 	}
 
@@ -139,7 +140,7 @@ func outputTable(courses []api.Course) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("Total: %d course(s)\n", len(courses))
+	fmt.Printf("Total: %d class(es)\n", len(courses))
 	return nil
 }
 

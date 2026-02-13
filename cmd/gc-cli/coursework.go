@@ -17,17 +17,18 @@ import (
 
 func CourseworkCmd(cfg *config.Config) *cli.Command {
 	return &cli.Command{
-		Name:  "coursework",
-		Usage: "manage coursework for a course",
+		Name:    "coursework",
+		Aliases: []string{"classwork", "cw"},
+		Usage:   "manage classwork for a class",
 		Subcommands: []*cli.Command{
 			{
 				Name:   "list",
-				Usage:  "list coursework for a course",
+				Usage:  "list classwork for a class",
 				Action: handleCourseworkList(cfg),
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "course",
-						Usage:    "course ID to list coursework for",
+						Usage:    "course ID to list classwork for",
 						Required: true,
 					},
 					&cli.BoolFlag{
@@ -36,7 +37,7 @@ func CourseworkCmd(cfg *config.Config) *cli.Command {
 					},
 					&cli.BoolFlag{
 						Name:  "all",
-						Usage: "include all coursework (including draft)",
+						Usage: "include all classwork (including draft)",
 					},
 				},
 			},
@@ -60,13 +61,17 @@ func handleCourseworkList(cfg *config.Config) func(*cli.Context) error {
 		}
 
 		courseID := c.String("course")
+		if courseID == "" {
+			return fmt.Errorf("course ID is required (use --course flag)")
+		}
+
 		if _, err := client.GetCourse(ctx, courseID); err != nil {
 			return fmt.Errorf("course %s not found or access denied: %w", courseID, err)
 		}
 
 		coursework, _, err := client.ListCourseWork(ctx, courseID, 100)
 		if err != nil {
-			return fmt.Errorf("failed to list coursework: %w", err)
+			return fmt.Errorf("failed to list classwork: %w", err)
 		}
 
 		filteredCoursework := coursework
@@ -151,7 +156,7 @@ func outputCourseworkJSON(coursework []api.CourseWork) error {
 
 func outputCourseworkTable(coursework []api.CourseWork) error {
 	if len(coursework) == 0 {
-		fmt.Println("No coursework found.")
+		fmt.Println("No classwork found.")
 		return nil
 	}
 
@@ -217,6 +222,6 @@ func outputCourseworkTable(coursework []api.CourseWork) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("Total: %d coursework item(s)\n", len(coursework))
+	fmt.Printf("Total: %d classwork item(s)\n", len(coursework))
 	return nil
 }

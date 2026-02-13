@@ -28,7 +28,7 @@ func SubmitCmd(cfg *config.Config) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:     "assignment",
-				Usage:    "assignment (coursework) ID",
+				Usage:    "assignment (classwork) ID",
 				Required: true,
 			},
 			&cli.StringFlag{

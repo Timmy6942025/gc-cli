@@ -63,7 +63,9 @@ type Model struct {
 	Grades        []GradeItem
 	Announcements []AnnouncementItem
 
-	SelectedCoursework int
+	SelectedCoursework   int
+	SelectedGrade        int
+	SelectedAnnouncement int
 
 	SelectedCourseID   string
 	SelectedCourseName string
@@ -532,19 +534,30 @@ func (m Model) selectMenuItem() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleContentKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.CurrentView == ViewCoursework {
+	if m.CurrentView == ViewCoursework || m.CurrentView == ViewGrades || m.CurrentView == ViewAnnouncements {
 		if key.Matches(msg, keys.Up) {
-			if m.SelectedCoursework > 0 {
-				m.SelectedCoursework--
-			}
-			m.Viewport.SetContent(m.renderCoursework())
+			m.scrollUp()
 			return m, nil
 		}
 		if key.Matches(msg, keys.Down) {
-			if m.SelectedCoursework < len(m.Coursework)-1 {
-				m.SelectedCoursework++
+			m.scrollDown()
+			return m, nil
+		}
+	}
+
+	if m.CurrentView == ViewCoursePicker {
+		if key.Matches(msg, keys.Up) {
+			if m.CoursePickerIndex > 0 {
+				m.CoursePickerIndex--
 			}
-			m.Viewport.SetContent(m.renderCoursework())
+			m.updateViewport(m.renderCoursePicker())
+			return m, nil
+		}
+		if key.Matches(msg, keys.Down) {
+			if m.CoursePickerIndex < len(m.Courses)-1 {
+				m.CoursePickerIndex++
+			}
+			m.updateViewport(m.renderCoursePicker())
 			return m, nil
 		}
 	}
@@ -564,6 +577,46 @@ func (m Model) handleContentKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) scrollUp() {
+	switch m.CurrentView {
+	case ViewCoursework:
+		if m.SelectedCoursework > 0 {
+			m.SelectedCoursework--
+			m.Viewport.SetContent(m.renderCoursework())
+		}
+	case ViewGrades:
+		if m.SelectedGrade > 0 {
+			m.SelectedGrade--
+			m.Viewport.SetContent(m.renderGrades())
+		}
+	case ViewAnnouncements:
+		if m.SelectedAnnouncement > 0 {
+			m.SelectedAnnouncement--
+			m.Viewport.SetContent(m.renderAnnouncements())
+		}
+	}
+}
+
+func (m *Model) scrollDown() {
+	switch m.CurrentView {
+	case ViewCoursework:
+		if m.SelectedCoursework < len(m.Coursework)-1 {
+			m.SelectedCoursework++
+			m.Viewport.SetContent(m.renderCoursework())
+		}
+	case ViewGrades:
+		if m.SelectedGrade < len(m.Grades)-1 {
+			m.SelectedGrade++
+			m.Viewport.SetContent(m.renderGrades())
+		}
+	case ViewAnnouncements:
+		if m.SelectedAnnouncement < len(m.Announcements)-1 {
+			m.SelectedAnnouncement++
+			m.Viewport.SetContent(m.renderAnnouncements())
+		}
+	}
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {

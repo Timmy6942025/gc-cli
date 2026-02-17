@@ -35,11 +35,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.enrolledCourses = msg.enrolledCourses
 		m.applyCourseView(previous)
 		m.status = fmt.Sprintf(
-			"Loaded %d classes (Teaching: %d, Enrolled: %d) at %s",
+			"Loaded %d classes (Teaching: %d, Enrolled: %d) at %s (Focus: %s)",
 			len(m.allCourses),
 			len(m.teachingCourses),
 			len(m.enrolledCourses),
 			time.Now().Format(time.Kitchen),
+			m.focusLabel(),
 		)
 		m.refreshPanels()
 		return m, nil
@@ -47,21 +48,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keys.NextTab):
+		case key.Matches(msg, m.keys.NextPane):
+			m.moveFocus(1)
+			m.refreshPanels()
+			return m, nil
+		case key.Matches(msg, m.keys.PrevPane):
+			m.moveFocus(-1)
+			m.refreshPanels()
+			return m, nil
+		case key.Matches(msg, m.keys.NextViewTab):
+			previous := m.selectedCourseID()
 			if m.classMode {
 				cycleList(&m.classTabs, 1)
 			} else {
-				previous := m.selectedCourseID()
 				cycleList(&m.globalList, 1)
 				m.applyCourseView(previous)
 			}
 			m.refreshPanels()
 			return m, nil
-		case key.Matches(msg, m.keys.PrevTab):
+		case key.Matches(msg, m.keys.PrevViewTab):
+			previous := m.selectedCourseID()
 			if m.classMode {
 				cycleList(&m.classTabs, -1)
 			} else {
-				previous := m.selectedCourseID()
 				cycleList(&m.globalList, -1)
 				m.applyCourseView(previous)
 			}
@@ -70,15 +79,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.OpenClass):
 			if m.selectedCourse() != nil {
 				m.classMode = true
+				m.focus = focusTabs
 				m.refreshPanels()
 			}
 			return m, nil
 		case key.Matches(msg, m.keys.Back):
 			m.classMode = false
+			if m.focus == focusTabs {
+				m.focus = focusCourses
+			}
 			m.refreshPanels()
 			return m, nil
 		case key.Matches(msg, m.keys.Refresh):
-			m.status = "Refreshing classes from Google Classroom..."
+			m.status = fmt.Sprintf("Refreshing classes from Google Classroom... (Focus: %s)", m.focusLabel())
 			m.refreshPanels()
 			return m, m.refreshCourses()
 		case key.Matches(msg, m.keys.OpenWeb):
@@ -93,24 +106,66 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	prevCourseID := m.selectedCourseID()
-	var cmds []tea.Cmd
+	prevGlobalView := m.currentGlobalView()
+	prevClassTab := m.currentClassTab()
+
 	var cmd tea.Cmd
-
-	// Keep class list navigation consistent in both global and class modes.
-	// Class tabs are intentionally switched via tab/shift-tab (or [/]).
-	m.courseList, cmd = m.courseList.Update(msg)
-	cmds = append(cmds, cmd)
-
-	if _, isKey := msg.(tea.KeyMsg); !isKey {
-		m.content, cmd = m.content.Update(msg)
-		cmds = append(cmds, cmd)
+	switch m.focus {
+	case focusGlobal:
+		m.globalList, cmd = m.globalList.Update(msg)
+	case focusTabs:
+		if m.classMode {
+			m.classTabs, cmd = m.classTabs.Update(msg)
+		} else {
+			m.focus = focusCourses
+			m.courseList, cmd = m.courseList.Update(msg)
+		}
+	default:
+		m.courseList, cmd = m.courseList.Update(msg)
 	}
 
-	if prevCourseID != m.selectedCourseID() {
+	if m.currentGlobalView() != prevGlobalView {
+		m.applyCourseView(prevCourseID)
+	}
+	if prevCourseID != m.selectedCourseID() || prevGlobalView != m.currentGlobalView() || prevClassTab != m.currentClassTab() {
 		m.refreshPanels()
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, cmd
+}
+
+func (m *model) moveFocus(step int) {
+	areas := []focusArea{focusGlobal, focusCourses}
+	if m.classMode {
+		areas = append(areas, focusTabs)
+	}
+	if len(areas) == 0 {
+		m.focus = focusCourses
+		return
+	}
+	idx := 0
+	for i, area := range areas {
+		if area == m.focus {
+			idx = i
+			break
+		}
+	}
+	idx += step
+	for idx < 0 {
+		idx += len(areas)
+	}
+	m.focus = areas[idx%len(areas)]
+}
+
+func (m *model) focusLabel() string {
+	switch m.focus {
+	case focusGlobal:
+		return "Global Views"
+	case focusTabs:
+		return "Class Tabs"
+	default:
+		return "Classes"
+	}
 }
 
 func (m *model) refreshPanels() {
@@ -163,15 +218,15 @@ func (m *model) updateContent() {
 			m.content.SetContent("Home\n\nSelect a class to enter Stream/Classwork/People/Grades.")
 			return
 		}
-		m.content.SetContent(fmt.Sprintf("Home\n\nSelected class: %s\nCourse ID: %s\n\nPress enter to open class tabs.\nPress o to open this class in Classroom web.", course.Name, course.Id))
+		m.content.SetContent(fmt.Sprintf("Home\n\nSelected class: %s\nCourse ID: %s\n\nUse tab/shift+tab to move focus between panes.\nPress enter to open class tabs, o to open this class in Classroom web.", course.Name, course.Id))
 	case "To-do":
 		m.content.SetContent("To-do\n\nUse `gc-cli to-do list` to view pending student work.")
 	case "Calendar":
 		m.content.SetContent("Calendar\n\nPress o to open Google Calendar in your browser.")
 	case "Teaching":
-		m.content.SetContent(fmt.Sprintf("Teaching\n\nShowing %d teaching classes.\nUse tab/shift+tab to switch views.", len(m.teachingCourses)))
+		m.content.SetContent(fmt.Sprintf("Teaching\n\nShowing %d teaching classes.\nUse up/down on Global Views, or [ and ] for quick view switching.", len(m.teachingCourses)))
 	case "Enrolled":
-		m.content.SetContent(fmt.Sprintf("Enrolled\n\nShowing %d enrolled classes.\nUse tab/shift+tab to switch views.", len(m.enrolledCourses)))
+		m.content.SetContent(fmt.Sprintf("Enrolled\n\nShowing %d enrolled classes.\nUse up/down on Global Views, or [ and ] for quick view switching.", len(m.enrolledCourses)))
 	default:
 		m.content.SetContent("")
 	}

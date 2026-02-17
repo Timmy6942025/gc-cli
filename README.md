@@ -25,6 +25,20 @@ gc-cli
 
 `gc` is also installed as an alias.
 
+## TUI navigation
+
+In the TUI:
+
+```bash
+tab / shift+tab   # move focus between Global Views, Classes, Class Tabs
+up/down (or j/k)  # move inside the focused pane
+[ / ]             # quick switch global view (or class tab when class is open)
+enter             # open class tabs for selected class
+esc               # return from class tabs to global mode
+r                 # refresh from Classroom
+o                 # open current context in browser
+```
+
 ## Seamless OAuth
 
 The binary ships with a default OAuth Desktop client configuration, so users can run `gc-cli auth login` without manual config.

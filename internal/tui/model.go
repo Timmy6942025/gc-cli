@@ -33,6 +33,7 @@ type model struct {
 	status string
 
 	classMode bool
+	focus     focusArea
 
 	width       int
 	height      int
@@ -40,6 +41,14 @@ type model struct {
 	middleWidth int
 	rightWidth  int
 }
+
+type focusArea int
+
+const (
+	focusGlobal focusArea = iota
+	focusCourses
+	focusTabs
+)
 
 type coursesMsg struct {
 	courses         []*gclassroom.Course
@@ -113,8 +122,9 @@ func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResol
 		classTabs:   tabs,
 		courseInfo:  courseInfo,
 		content:     content,
-		status:      "Press r to refresh, enter to open class tabs, tab/[ ] to switch view/tab, ? for help.",
+		status:      "Use tab/shift+tab to change pane focus, up/down to navigate, [ ] to switch view/tab, enter to open class, ? for help.",
 		classMode:   false,
+		focus:       focusCourses,
 		leftWidth:   24,
 		middleWidth: 44,
 		rightWidth:  44,

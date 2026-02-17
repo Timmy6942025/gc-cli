@@ -10,17 +10,30 @@ func (m *model) View() string {
 	styles := defaultStyles()
 
 	title := styles.title.Render("Google Classroom CLI")
-	subtitle := styles.muted.Render("Bubble Tea + Bubbles: list, table, viewport, help, key")
+	subtitle := styles.muted.Render("Bubble Tea + Bubbles | Focus: " + m.focusLabel())
 
-	left := styles.panel.Width(m.leftWidth).Render(m.globalList.View())
-	middle := styles.panel.Width(m.middleWidth).Render(m.courseList.View())
+	leftStyle := styles.panel
+	if m.focus == focusGlobal {
+		leftStyle = styles.panelFocused
+	}
+	middleStyle := styles.panel
+	if m.focus == focusCourses {
+		middleStyle = styles.panelFocused
+	}
+	rightStyle := styles.panel
+	if m.classMode && m.focus == focusTabs {
+		rightStyle = styles.panelFocused
+	}
+
+	left := leftStyle.Width(m.leftWidth).Render(m.globalList.View())
+	middle := middleStyle.Width(m.middleWidth).Render(m.courseList.View())
 
 	rightSections := make([]string, 0, 4)
 	if m.classMode {
 		rightSections = append(rightSections, m.classTabs.View())
 	}
 	rightSections = append(rightSections, m.courseInfo.View(), m.content.View())
-	right := styles.panel.Width(m.rightWidth).Render(strings.Join(rightSections, "\n\n"))
+	right := rightStyle.Width(m.rightWidth).Render(strings.Join(rightSections, "\n\n"))
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
 	footer := styles.status.Render(m.status)

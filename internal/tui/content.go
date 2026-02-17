@@ -22,6 +22,7 @@ type contentLoadedMsg struct {
 	courseWorkItems []*gclassroom.CourseWork
 	teacherItems    []*gclassroom.Teacher
 	studentItems    []*gclassroom.Student
+	todoItems       []classroom.TodoItem
 }
 
 type gradeSummaryRow struct {
@@ -92,6 +93,7 @@ func (m *model) resetContentCache() {
 	m.classworkByCourse = map[string][]*gclassroom.CourseWork{}
 	m.teachersByCourse = map[string][]*gclassroom.Teacher{}
 	m.studentsByCourse = map[string][]*gclassroom.Student{}
+	m.todoItems = []classroom.TodoItem{}
 }
 
 func (m *model) loadTodoContent(key string) tea.Cmd {
@@ -126,9 +128,10 @@ func (m *model) loadTodoContent(key string) tea.Cmd {
 		}
 
 		return contentLoadedMsg{
-			key:     key,
-			content: strings.TrimSpace(b.String()),
-			status:  fmt.Sprintf("Loaded To-do (%d items)", len(items)),
+			key:       key,
+			content:   strings.TrimSpace(b.String()),
+			status:    fmt.Sprintf("Loaded To-do (%d items)", len(items)),
+			todoItems: append([]classroom.TodoItem(nil), items...),
 		}
 	}
 }

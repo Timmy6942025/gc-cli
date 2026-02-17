@@ -44,9 +44,10 @@ o                 # open current context in browser
 `Stream`, `Classwork`, `People`, `Grades`, and `To-do` load real Classroom API data in the content pane.
 Actions menu supports guided operations (no manual command writing) for:
 - `Stream`: post, edit, delete announcements
-- `Classwork`: create, edit, publish, schedule, delete
+- `Classwork`: create, edit, publish, schedule, delete, turn in/mark as done, unsubmit/reclaim
 - `People`: invite/remove teacher or student
 - `Grades`: set draft/assigned grade, return submission
+- `To-do`: turn in/mark as done, unsubmit/reclaim by `#` item
 
 Use `#<number>` shortcuts where shown in tab lists (for example `#1` for first classwork item) when prompted.
 Use command bar examples:

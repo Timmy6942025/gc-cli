@@ -47,6 +47,7 @@ type model struct {
 	classworkByCourse map[string][]*gclassroom.CourseWork
 	teachersByCourse  map[string][]*gclassroom.Teacher
 	studentsByCourse  map[string][]*gclassroom.Student
+	todoItems         []classroom.TodoItem
 
 	actionMode      bool
 	actionSelecting bool
@@ -174,6 +175,7 @@ func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResol
 		classworkByCourse: map[string][]*gclassroom.CourseWork{},
 		teachersByCourse:  map[string][]*gclassroom.Teacher{},
 		studentsByCourse:  map[string][]*gclassroom.Student{},
+		todoItems:         []classroom.TodoItem{},
 		actionMode:        false,
 		actionSelecting:   false,
 		actionList:        actionList,

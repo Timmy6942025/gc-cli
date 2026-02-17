@@ -1,13 +1,17 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	gclassroom "google.golang.org/api/classroom/v1"
+
+	"github.com/timothy/gc-cli/internal/classroom"
 )
 
 type quickActionDef struct {
@@ -164,8 +168,44 @@ func (m *model) closeActionMode(status string) {
 }
 
 func (m *model) contextActions() []quickActionDef {
+	if !m.classMode {
+		if m.currentGlobalView() == "To-do" {
+			return []quickActionDef{
+				{
+					title: "Turn in / Mark as done",
+					desc:  "Submit a To-do assignment",
+					steps: []quickActionStep{
+						{key: "todo_ref", label: "To-do item (#)", placeholder: "#1", resolve: resolveTodoRef},
+					},
+					build: func(_ *model, values map[string]string) (string, error) {
+						courseID, courseWorkID, submissionID, err := parseTodoRef(values["todo_ref"])
+						if err != nil {
+							return "", err
+						}
+						return "submissions turn-in --course " + quoteArg(courseID) + " --course-work " + quoteArg(courseWorkID) + " --submission " + quoteArg(submissionID), nil
+					},
+				},
+				{
+					title: "Unsubmit / Reclaim",
+					desc:  "Undo turn in for a To-do item",
+					steps: []quickActionStep{
+						{key: "todo_ref", label: "To-do item (#)", placeholder: "#1", resolve: resolveTodoRef},
+					},
+					build: func(_ *model, values map[string]string) (string, error) {
+						courseID, courseWorkID, submissionID, err := parseTodoRef(values["todo_ref"])
+						if err != nil {
+							return "", err
+						}
+						return "submissions unsubmit --course " + quoteArg(courseID) + " --course-work " + quoteArg(courseWorkID) + " --submission " + quoteArg(submissionID), nil
+					},
+				},
+			}
+		}
+		return nil
+	}
+
 	course := m.selectedCourse()
-	if !m.classMode || course == nil {
+	if course == nil {
 		return nil
 	}
 	courseID := course.Id
@@ -279,6 +319,36 @@ func (m *model) contextActions() []quickActionDef {
 				},
 				build: func(_ *model, values map[string]string) (string, error) {
 					return "classwork delete --course " + quoteArg(courseID) + " --course-work " + quoteArg(values["course_work"]), nil
+				},
+			},
+			{
+				title: "Turn in / Mark as done",
+				desc:  "Submit your classwork",
+				steps: []quickActionStep{
+					{key: "course_work", label: "Classwork (# or ID)", placeholder: "#1 or course-work ID", resolve: resolveCourseWorkRef},
+				},
+				build: func(m *model, values map[string]string) (string, error) {
+					courseWorkID := strings.TrimSpace(values["course_work"])
+					submissionID, err := m.resolveMySubmissionID(courseID, courseWorkID)
+					if err != nil {
+						return "", err
+					}
+					return "submissions turn-in --course " + quoteArg(courseID) + " --course-work " + quoteArg(courseWorkID) + " --submission " + quoteArg(submissionID), nil
+				},
+			},
+			{
+				title: "Unsubmit / Reclaim",
+				desc:  "Take back your turned-in work",
+				steps: []quickActionStep{
+					{key: "course_work", label: "Classwork (# or ID)", placeholder: "#1 or course-work ID", resolve: resolveCourseWorkRef},
+				},
+				build: func(m *model, values map[string]string) (string, error) {
+					courseWorkID := strings.TrimSpace(values["course_work"])
+					submissionID, err := m.resolveMySubmissionID(courseID, courseWorkID)
+					if err != nil {
+						return "", err
+					}
+					return "submissions unsubmit --course " + quoteArg(courseID) + " --course-work " + quoteArg(courseWorkID) + " --submission " + quoteArg(submissionID), nil
 				},
 			},
 		}
@@ -398,6 +468,49 @@ func resolvePersonRef(m *model, values map[string]string, raw string) (string, e
 	}
 }
 
+func resolveTodoRef(m *model, _ map[string]string, raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("to-do item is required")
+	}
+	if !strings.HasPrefix(raw, "#") {
+		if _, _, _, err := parseTodoRef(raw); err != nil {
+			return "", err
+		}
+		return raw, nil
+	}
+	idx, err := strconv.Atoi(strings.TrimPrefix(raw, "#"))
+	if err != nil || idx < 1 {
+		return "", fmt.Errorf("invalid to-do shortcut %q", raw)
+	}
+	if idx > len(m.todoItems) {
+		return "", fmt.Errorf("to-do shortcut %q out of range (1-%d)", raw, len(m.todoItems))
+	}
+	item := m.todoItems[idx-1]
+	if strings.TrimSpace(item.CourseID) == "" || strings.TrimSpace(item.CourseWorkID) == "" || strings.TrimSpace(item.SubmissionID) == "" {
+		return "", fmt.Errorf("selected to-do item is missing course-work/submission IDs")
+	}
+	return joinTodoRef(item.CourseID, item.CourseWorkID, item.SubmissionID), nil
+}
+
+func (m *model) resolveMySubmissionID(courseID, courseWorkID string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	submissions, _, err := m.client.ListStudentSubmissions(ctx, courseID, courseWorkID, "me", classroom.ListParams{PageSize: 5})
+	if err != nil {
+		return "", fmt.Errorf("load your submission for classwork %s: %w", courseWorkID, err)
+	}
+	if len(submissions) == 0 {
+		return "", fmt.Errorf("no submission found for you in classwork %s", courseWorkID)
+	}
+	submissionID := strings.TrimSpace(submissions[0].Id)
+	if submissionID == "" {
+		return "", fmt.Errorf("submission ID is empty for classwork %s", courseWorkID)
+	}
+	return submissionID, nil
+}
+
 func resolveByIndexOrRaw[T any](raw string, items []T, idFn func(item T) string, label string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -421,6 +534,24 @@ func resolveByIndexOrRaw[T any](raw string, items []T, idFn func(item T) string,
 		return "", fmt.Errorf("selected %s has no ID", label)
 	}
 	return resolved, nil
+}
+
+func joinTodoRef(courseID, courseWorkID, submissionID string) string {
+	return strings.TrimSpace(courseID) + "::" + strings.TrimSpace(courseWorkID) + "::" + strings.TrimSpace(submissionID)
+}
+
+func parseTodoRef(raw string) (courseID, courseWorkID, submissionID string, err error) {
+	parts := strings.Split(strings.TrimSpace(raw), "::")
+	if len(parts) != 3 {
+		return "", "", "", fmt.Errorf("invalid to-do reference; expected #<n> or course::courseWork::submission")
+	}
+	courseID = strings.TrimSpace(parts[0])
+	courseWorkID = strings.TrimSpace(parts[1])
+	submissionID = strings.TrimSpace(parts[2])
+	if courseID == "" || courseWorkID == "" || submissionID == "" {
+		return "", "", "", fmt.Errorf("invalid to-do reference; missing IDs")
+	}
+	return courseID, courseWorkID, submissionID, nil
 }
 
 func quoteArg(v string) string {

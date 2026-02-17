@@ -57,6 +57,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.studentsByCourse[courseID] = append([]*gclassroom.Student(nil), msg.studentItems...)
 			}
 		}
+		if msg.key == "global:todo" {
+			m.todoItems = append([]classroom.TodoItem(nil), msg.todoItems...)
+		}
 		if msg.err != nil && strings.TrimSpace(msg.content) == "" {
 			m.contentCache[msg.key] = fmt.Sprintf("Load failed:\n\n%v", msg.err)
 			m.status = fmt.Sprintf("Failed to load %s: %v", friendlyContentKey(msg.key), msg.err)

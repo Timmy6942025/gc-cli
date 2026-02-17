@@ -38,6 +38,9 @@ func (m *model) View() string {
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
 	footer := styles.status.Render(m.status)
 	kb := m.help.View(m.keys)
-
+	if m.commandMode {
+		prompt := styles.command.Render(":" + m.commandInput.View())
+		return strings.Join([]string{title, subtitle, "", body, "", footer, kb, prompt}, "\n")
+	}
 	return strings.Join([]string{title, subtitle, "", body, "", footer, kb}, "\n")
 }

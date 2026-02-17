@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	gclassroom "google.golang.org/api/classroom/v1"
@@ -38,6 +39,9 @@ type model struct {
 	contentCache   map[string]string
 	contentLoading map[string]bool
 	lastContentKey string
+
+	commandMode  bool
+	commandInput textinput.Model
 
 	width       int
 	height      int
@@ -114,6 +118,11 @@ func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResol
 	content := viewport.New(36, 10)
 	content.SetContent("Loading courses...")
 
+	commandInput := textinput.New()
+	commandInput.Placeholder = "Enter gc-cli command, e.g. classwork create --course <id> --title \"...\""
+	commandInput.CharLimit = 4096
+	commandInput.Width = 80
+
 	helper := help.New()
 	helper.ShowAll = false
 
@@ -127,11 +136,13 @@ func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResol
 		classTabs:      tabs,
 		courseInfo:     courseInfo,
 		content:        content,
-		status:         "Use tab/shift+tab to change pane focus, up/down to navigate, [ ] to switch view/tab, enter to open class, esc to go back.",
+		status:         "Use tab/shift+tab to change pane focus, up/down to navigate, [ ] to switch view/tab, : to run commands, enter to open class.",
 		classMode:      false,
 		focus:          focusCourses,
 		contentCache:   map[string]string{},
 		contentLoading: map[string]bool{},
+		commandMode:    false,
+		commandInput:   commandInput,
 		leftWidth:      24,
 		middleWidth:    44,
 		rightWidth:     44,

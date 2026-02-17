@@ -33,6 +33,7 @@ In the TUI:
 tab / shift+tab   # move focus between Global Views, Classes, Class Tabs, Content
 up/down (or j/k)  # move inside the focused pane
 [ / ]             # quick switch global view (or class tab when class is open)
+:                 # open in-TUI command bar (run any gc-cli subcommand)
 enter             # open class tabs for selected class
 esc               # return from class tabs to global mode
 r                 # refresh from Classroom
@@ -40,6 +41,14 @@ o                 # open current context in browser
 ```
 
 `Stream`, `Classwork`, `People`, `Grades`, and `To-do` load real Classroom API data in the content pane.
+Use command bar examples:
+
+```bash
+stream post --course <course_id> --text "Reminder: quiz Friday"
+classwork create --course <course_id> --title "Worksheet 4"
+people invite --course <course_id> --role student --user student@example.com
+submissions turn-in --course <course_id> --course-work <work_id> --submission <submission_id>
+```
 
 ## Seamless OAuth
 

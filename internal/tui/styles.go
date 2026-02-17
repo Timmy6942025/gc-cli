@@ -8,6 +8,7 @@ type uiStyles struct {
 	panelFocused lipgloss.Style
 	muted        lipgloss.Style
 	status       lipgloss.Style
+	command      lipgloss.Style
 }
 
 func defaultStyles() uiStyles {
@@ -20,6 +21,10 @@ func defaultStyles() uiStyles {
 		status: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("252")).
 			Background(lipgloss.Color("236")).
+			Padding(0, 1),
+		command: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("230")).
+			Background(lipgloss.Color("24")).
 			Padding(0, 1),
 	}
 }

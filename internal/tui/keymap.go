@@ -8,6 +8,7 @@ type appKeyMap struct {
 	PrevPane    key.Binding
 	NextViewTab key.Binding
 	PrevViewTab key.Binding
+	Command     key.Binding
 	OpenClass   key.Binding
 	Back        key.Binding
 	OpenWeb     key.Binding
@@ -38,6 +39,10 @@ func newKeyMap() appKeyMap {
 			key.WithKeys("["),
 			key.WithHelp("[", "previous view/tab"),
 		),
+		Command: key.NewBinding(
+			key.WithKeys(":"),
+			key.WithHelp(":", "run command"),
+		),
 		OpenClass: key.NewBinding(
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "open class tabs"),
@@ -66,12 +71,12 @@ func newKeyMap() appKeyMap {
 }
 
 func (k appKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.UpDown, k.NextPane, k.NextViewTab, k.OpenClass, k.OpenWeb, k.Refresh, k.Quit}
+	return []key.Binding{k.UpDown, k.NextPane, k.NextViewTab, k.Command, k.OpenClass, k.Refresh, k.Quit}
 }
 
 func (k appKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.UpDown, k.NextPane, k.PrevPane, k.NextViewTab, k.PrevViewTab},
+		{k.UpDown, k.NextPane, k.PrevPane, k.NextViewTab, k.PrevViewTab, k.Command},
 		{k.OpenClass, k.Back, k.OpenWeb, k.Refresh, k.ToggleHelp, k.Quit},
 	}
 }

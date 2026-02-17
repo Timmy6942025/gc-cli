@@ -35,6 +35,8 @@ func (m *model) resize(width, height int) {
 
 	m.content.Width = max(24, right-6)
 	m.content.Height = max(6, listHeight-18)
+
+	m.commandInput.Width = max(40, width-10)
 }
 
 func cycleList(l *list.Model, step int) {

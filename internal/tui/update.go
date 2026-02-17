@@ -62,10 +62,60 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshPanels()
 		}
 		return m, nil
+	case commandResultMsg:
+		if msg.err != nil {
+			m.status = fmt.Sprintf("Command failed: %v", msg.err)
+		} else {
+			m.status = "Command finished. Press r to refresh Classroom data."
+			m.resetContentCache()
+		}
+		output := strings.TrimSpace(msg.output)
+		if output == "" {
+			output = "(no output)"
+		}
+		m.setViewportContent(
+			"command-output:"+time.Now().Format(time.RFC3339Nano),
+			fmt.Sprintf("Command Output\n\n$ gc-cli %s\n\n%s", strings.TrimSpace(msg.command), output),
+		)
+		m.focus = focusContent
+		return m, nil
 	case tea.KeyMsg:
+		if m.commandMode {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.commandMode = false
+				m.commandInput.Blur()
+				m.commandInput.SetValue("")
+				m.status = "Command cancelled"
+				return m, nil
+			case tea.KeyEnter:
+				raw := strings.TrimSpace(m.commandInput.Value())
+				m.commandMode = false
+				m.commandInput.Blur()
+				m.commandInput.SetValue("")
+				if raw == "" {
+					m.status = "Command cancelled"
+					return m, nil
+				}
+				m.status = "Running command..."
+				return m, m.runCLICommand(raw)
+			default:
+				var cmd tea.Cmd
+				m.commandInput, cmd = m.commandInput.Update(msg)
+				return m, cmd
+			}
+		}
+
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
+		case key.Matches(msg, m.keys.Command):
+			m.commandMode = true
+			m.commandInput.SetValue(m.defaultCommandTemplate())
+			m.commandInput.CursorEnd()
+			m.commandInput.Focus()
+			m.status = "Command mode active. Enter to run, esc to cancel."
+			return m, nil
 		case key.Matches(msg, m.keys.NextPane):
 			m.moveFocus(1)
 			m.refreshPanels()

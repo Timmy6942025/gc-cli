@@ -1,0 +1,35 @@
+{
+  "name": "gc-classroom-cli",
+  "version": "0.1.0",
+  "description": "Google Classroom CLI/TUI packaged for npm and bun",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "bin": {
+    "gc-cli": "bin/gc-cli.js",
+    "gc": "bin/gc-cli.js"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "docs/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build:dist": "bash scripts/build-npm-dist.sh",
+    "test": "go test ./...",
+    "release:prepare": "npm run build:dist"
+  },
+  "keywords": [
+    "google-classroom",
+    "cli",
+    "tui",
+    "education"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/timothy/gc-cli.git"
+  }
+}

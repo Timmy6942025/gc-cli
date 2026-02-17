@@ -1,0 +1,12 @@
+/dist
+*.tgz
+gcp.json
+*.log
+*.out
+*.test
+*.exe
+*.db
+*.sqlite
+.idea
+.vscode
+.DS_Store

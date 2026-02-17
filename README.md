@@ -33,6 +33,7 @@ In the TUI:
 tab / shift+tab   # move focus between Global Views, Classes, Class Tabs, Content
 up/down (or j/k)  # move inside the focused pane
 [ / ]             # quick switch global view (or class tab when class is open)
+a                 # open contextual Actions menu (simple guided flow)
 :                 # open in-TUI command bar (run any gc-cli subcommand)
 enter             # open class tabs for selected class
 esc               # return from class tabs to global mode
@@ -41,6 +42,13 @@ o                 # open current context in browser
 ```
 
 `Stream`, `Classwork`, `People`, `Grades`, and `To-do` load real Classroom API data in the content pane.
+Actions menu supports guided operations (no manual command writing) for:
+- `Stream`: post, edit, delete announcements
+- `Classwork`: create, edit, publish, schedule, delete
+- `People`: invite/remove teacher or student
+- `Grades`: set draft/assigned grade, return submission
+
+Use `#<number>` shortcuts where shown in tab lists (for example `#1` for first classwork item) when prompted.
 Use command bar examples:
 
 ```bash

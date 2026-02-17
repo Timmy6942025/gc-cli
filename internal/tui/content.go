@@ -14,10 +14,14 @@ import (
 )
 
 type contentLoadedMsg struct {
-	key     string
-	content string
-	status  string
-	err     error
+	key             string
+	content         string
+	status          string
+	err             error
+	streamItems     []*gclassroom.Announcement
+	courseWorkItems []*gclassroom.CourseWork
+	teacherItems    []*gclassroom.Teacher
+	studentItems    []*gclassroom.Student
 }
 
 type gradeSummaryRow struct {
@@ -84,6 +88,10 @@ func (m *model) maybeLoadCurrentContent(force bool) tea.Cmd {
 func (m *model) resetContentCache() {
 	m.contentCache = map[string]string{}
 	m.contentLoading = map[string]bool{}
+	m.streamByCourse = map[string][]*gclassroom.Announcement{}
+	m.classworkByCourse = map[string][]*gclassroom.CourseWork{}
+	m.teachersByCourse = map[string][]*gclassroom.Teacher{}
+	m.studentsByCourse = map[string][]*gclassroom.Student{}
 }
 
 func (m *model) loadTodoContent(key string) tea.Cmd {
@@ -140,9 +148,10 @@ func (m *model) loadClassTabContent(course *gclassroom.Course, tab, key string) 
 				return contentLoadedMsg{key: key, err: err}
 			}
 			return contentLoadedMsg{
-				key:     key,
-				content: formatStreamContent(courseName, items, next),
-				status:  fmt.Sprintf("Loaded Stream (%d announcements)", len(items)),
+				key:         key,
+				content:     formatStreamContent(courseName, items, next),
+				status:      fmt.Sprintf("Loaded Stream (%d announcements)", len(items)),
+				streamItems: items,
 			}
 		case "Classwork":
 			items, next, err := m.client.ListCourseWork(ctx, courseID, classroomListParams(80))
@@ -154,9 +163,10 @@ func (m *model) loadClassTabContent(course *gclassroom.Course, tab, key string) 
 				topics = nil
 			}
 			return contentLoadedMsg{
-				key:     key,
-				content: formatClassworkContent(courseName, topics, items, next),
-				status:  fmt.Sprintf("Loaded Classwork (%d items)", len(items)),
+				key:             key,
+				content:         formatClassworkContent(courseName, topics, items, next),
+				status:          fmt.Sprintf("Loaded Classwork (%d items)", len(items)),
+				courseWorkItems: items,
 			}
 		case "People":
 			teachers, _, teacherErr := m.client.ListTeachers(ctx, courseID, classroomListParams(200))
@@ -169,10 +179,12 @@ func (m *model) loadClassTabContent(course *gclassroom.Course, tab, key string) 
 				partialErr = fmt.Errorf("people data partially loaded")
 			}
 			return contentLoadedMsg{
-				key:     key,
-				content: formatPeopleContent(courseName, teachers, students, teacherErr, studentErr),
-				status:  fmt.Sprintf("Loaded People (%d teachers, %d students)", len(teachers), len(students)),
-				err:     partialErr,
+				key:          key,
+				content:      formatPeopleContent(courseName, teachers, students, teacherErr, studentErr),
+				status:       fmt.Sprintf("Loaded People (%d teachers, %d students)", len(teachers), len(students)),
+				err:          partialErr,
+				teacherItems: teachers,
+				studentItems: students,
 			}
 		case "Grades":
 			workItems, _, err := m.client.ListCourseWork(ctx, courseID, classroomListParams(50))
@@ -308,9 +320,9 @@ func formatPeopleContent(courseName string, teachers []*gclassroom.Teacher, stud
 	if teacherErr != nil {
 		fmt.Fprintf(&b, "- Could not load teachers: %v\n", teacherErr)
 	} else {
-		for _, t := range teachers {
+		for i, t := range teachers {
 			profile := t.Profile
-			fmt.Fprintf(&b, "- %s <%s> (%s)\n", profileName(profile), profileEmail(profile), t.UserId)
+			fmt.Fprintf(&b, "%d. %s <%s> (%s)\n", i+1, profileName(profile), profileEmail(profile), t.UserId)
 		}
 		if len(teachers) == 0 {
 			b.WriteString("- None\n")
@@ -322,9 +334,9 @@ func formatPeopleContent(courseName string, teachers []*gclassroom.Teacher, stud
 	if studentErr != nil {
 		fmt.Fprintf(&b, "- Could not load students: %v\n", studentErr)
 	} else {
-		for _, s := range students {
+		for i, s := range students {
 			profile := s.Profile
-			fmt.Fprintf(&b, "- %s <%s> (%s)\n", profileName(profile), profileEmail(profile), s.UserId)
+			fmt.Fprintf(&b, "%d. %s <%s> (%s)\n", i+1, profileName(profile), profileEmail(profile), s.UserId)
 		}
 		if len(students) == 0 {
 			b.WriteString("- None\n")
@@ -450,4 +462,12 @@ func friendlyContentKey(key string) string {
 		return "class tab"
 	}
 	return key
+}
+
+func parseClassContentKey(key string) (courseID string, tab string, ok bool) {
+	parts := strings.Split(strings.TrimSpace(key), ":")
+	if len(parts) != 3 || parts[0] != "class" {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
 }

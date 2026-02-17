@@ -43,6 +43,20 @@ type model struct {
 	commandMode  bool
 	commandInput textinput.Model
 
+	streamByCourse    map[string][]*gclassroom.Announcement
+	classworkByCourse map[string][]*gclassroom.CourseWork
+	teachersByCourse  map[string][]*gclassroom.Teacher
+	studentsByCourse  map[string][]*gclassroom.Student
+
+	actionMode      bool
+	actionSelecting bool
+	actionList      list.Model
+	actionDefs      []quickActionDef
+	activeAction    *quickActionDef
+	actionStep      int
+	actionValues    map[string]string
+	actionInput     textinput.Model
+
 	width       int
 	height      int
 	leftWidth   int
@@ -123,29 +137,54 @@ func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResol
 	commandInput.CharLimit = 4096
 	commandInput.Width = 80
 
+	actionList := list.New([]list.Item{}, delegate, 56, 10)
+	actionList.Title = "Actions"
+	actionList.SetShowHelp(false)
+	actionList.SetShowFilter(false)
+	actionList.SetShowStatusBar(false)
+	actionList.SetShowPagination(false)
+	actionList.DisableQuitKeybindings()
+	actionList.SetFilteringEnabled(false)
+
+	actionInput := textinput.New()
+	actionInput.CharLimit = 4096
+	actionInput.Width = 80
+
 	helper := help.New()
 	helper.ShowAll = false
 
 	m := &model{
-		client:         client,
-		resolver:       resolver,
-		keys:           newKeyMap(),
-		help:           helper,
-		globalList:     globalList,
-		courseList:     courseList,
-		classTabs:      tabs,
-		courseInfo:     courseInfo,
-		content:        content,
-		status:         "Use tab/shift+tab to change pane focus, up/down to navigate, [ ] to switch view/tab, : to run commands, enter to open class.",
-		classMode:      false,
-		focus:          focusCourses,
-		contentCache:   map[string]string{},
-		contentLoading: map[string]bool{},
-		commandMode:    false,
-		commandInput:   commandInput,
-		leftWidth:      24,
-		middleWidth:    44,
-		rightWidth:     44,
+		client:            client,
+		resolver:          resolver,
+		keys:              newKeyMap(),
+		help:              helper,
+		globalList:        globalList,
+		courseList:        courseList,
+		classTabs:         tabs,
+		courseInfo:        courseInfo,
+		content:           content,
+		status:            "Use tab/shift+tab to change pane focus, up/down to navigate, [ ] to switch view/tab, : to run commands, enter to open class.",
+		classMode:         false,
+		focus:             focusCourses,
+		contentCache:      map[string]string{},
+		contentLoading:    map[string]bool{},
+		commandMode:       false,
+		commandInput:      commandInput,
+		streamByCourse:    map[string][]*gclassroom.Announcement{},
+		classworkByCourse: map[string][]*gclassroom.CourseWork{},
+		teachersByCourse:  map[string][]*gclassroom.Teacher{},
+		studentsByCourse:  map[string][]*gclassroom.Student{},
+		actionMode:        false,
+		actionSelecting:   false,
+		actionList:        actionList,
+		actionDefs:        nil,
+		activeAction:      nil,
+		actionStep:        0,
+		actionValues:      map[string]string{},
+		actionInput:       actionInput,
+		leftWidth:         24,
+		middleWidth:       44,
+		rightWidth:        44,
 	}
 	m.refreshPanels()
 	return m

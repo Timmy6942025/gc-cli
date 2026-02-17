@@ -46,6 +46,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.maybeLoadCurrentContent(true)
 	case contentLoadedMsg:
 		delete(m.contentLoading, msg.key)
+		if courseID, tab, ok := parseClassContentKey(msg.key); ok {
+			switch tab {
+			case "Stream":
+				m.streamByCourse[courseID] = append([]*gclassroom.Announcement(nil), msg.streamItems...)
+			case "Classwork":
+				m.classworkByCourse[courseID] = append([]*gclassroom.CourseWork(nil), msg.courseWorkItems...)
+			case "People":
+				m.teachersByCourse[courseID] = append([]*gclassroom.Teacher(nil), msg.teacherItems...)
+				m.studentsByCourse[courseID] = append([]*gclassroom.Student(nil), msg.studentItems...)
+			}
+		}
 		if msg.err != nil && strings.TrimSpace(msg.content) == "" {
 			m.contentCache[msg.key] = fmt.Sprintf("Load failed:\n\n%v", msg.err)
 			m.status = fmt.Sprintf("Failed to load %s: %v", friendlyContentKey(msg.key), msg.err)
@@ -80,6 +91,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.focus = focusContent
 		return m, nil
 	case tea.KeyMsg:
+		if m.actionMode {
+			return m.handleActionKey(msg)
+		}
 		if m.commandMode {
 			switch msg.Type {
 			case tea.KeyEsc:
@@ -109,6 +123,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
+		case key.Matches(msg, m.keys.ActionMenu):
+			m.openActionMenu()
+			return m, nil
 		case key.Matches(msg, m.keys.Command):
 			m.commandMode = true
 			m.commandInput.SetValue(m.defaultCommandTemplate())

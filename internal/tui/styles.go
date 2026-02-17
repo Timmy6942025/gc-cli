@@ -9,6 +9,7 @@ type uiStyles struct {
 	muted        lipgloss.Style
 	status       lipgloss.Style
 	command      lipgloss.Style
+	modal        lipgloss.Style
 }
 
 func defaultStyles() uiStyles {
@@ -25,6 +26,11 @@ func defaultStyles() uiStyles {
 		command: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("230")).
 			Background(lipgloss.Color("24")).
+			Padding(0, 1),
+		modal: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("81")).
+			Background(lipgloss.Color("235")).
 			Padding(0, 1),
 	}
 }

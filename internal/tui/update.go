@@ -96,13 +96,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
-	if m.classMode {
-		m.classTabs, cmd = m.classTabs.Update(msg)
-		cmds = append(cmds, cmd)
-	} else {
-		m.courseList, cmd = m.courseList.Update(msg)
-		cmds = append(cmds, cmd)
-	}
+	// Keep class list navigation consistent in both global and class modes.
+	// Class tabs are intentionally switched via tab/shift-tab (or [/]).
+	m.courseList, cmd = m.courseList.Update(msg)
+	cmds = append(cmds, cmd)
 
 	if _, isKey := msg.(tea.KeyMsg); !isKey {
 		m.content, cmd = m.content.Update(msg)

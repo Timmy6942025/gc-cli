@@ -21,12 +21,12 @@ func newKeyMap() appKeyMap {
 			key.WithHelp("up/down", "navigate classes"),
 		),
 		NextTab: key.NewBinding(
-			key.WithKeys("tab"),
-			key.WithHelp("tab", "next view/tab"),
+			key.WithKeys("tab", "]", "right"),
+			key.WithHelp("tab/]", "next view/tab"),
 		),
 		PrevTab: key.NewBinding(
-			key.WithKeys("shift+tab"),
-			key.WithHelp("shift+tab", "previous view/tab"),
+			key.WithKeys("shift+tab", "[", "left"),
+			key.WithHelp("shift+tab/[", "previous view/tab"),
 		),
 		OpenClass: key.NewBinding(
 			key.WithKeys("enter"),

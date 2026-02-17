@@ -113,7 +113,7 @@ func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResol
 		classTabs:   tabs,
 		courseInfo:  courseInfo,
 		content:     content,
-		status:      "Press r to refresh, enter to open class tabs, ? for help.",
+		status:      "Press r to refresh, enter to open class tabs, tab/[ ] to switch view/tab, ? for help.",
 		classMode:   false,
 		leftWidth:   24,
 		middleWidth: 44,

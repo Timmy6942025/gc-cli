@@ -25,7 +25,10 @@ type model struct {
 	courseInfo table.Model
 	content    viewport.Model
 
-	courses []*gclassroom.Course
+	courses         []*gclassroom.Course
+	allCourses      []*gclassroom.Course
+	teachingCourses []*gclassroom.Course
+	enrolledCourses []*gclassroom.Course
 
 	status string
 
@@ -39,8 +42,10 @@ type model struct {
 }
 
 type coursesMsg struct {
-	courses []*gclassroom.Course
-	err     error
+	courses         []*gclassroom.Course
+	teachingCourses []*gclassroom.Course
+	enrolledCourses []*gclassroom.Course
+	err             error
 }
 
 func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResolver) tea.Model {

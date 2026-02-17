@@ -64,6 +64,14 @@ type ListParams struct {
 	PageToken string
 }
 
+type CourseListParams struct {
+	PageSize     int64
+	PageToken    string
+	TeacherID    string
+	StudentID    string
+	CourseStates []string
+}
+
 type TodoItem struct {
 	CourseID        string    `json:"course_id"`
 	CourseName      string    `json:"course_name"`

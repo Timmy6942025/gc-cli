@@ -64,6 +64,12 @@ Build npm dist binaries:
 npm run build:dist
 ```
 
+If your OAuth Desktop client requires a secret for token exchange, inject it at build time:
+
+```bash
+GC_CLI_DEFAULT_OAUTH_CLIENT_SECRET="..." npm run build:dist
+```
+
 Create package tarball:
 
 ```bash

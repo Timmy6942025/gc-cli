@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -28,9 +30,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		previous := m.selectedCourseID()
-		m.courses = msg.courses
-		m.setCourseItems(previous)
-		m.status = fmt.Sprintf("Loaded %d classes at %s", len(msg.courses), time.Now().Format(time.Kitchen))
+		m.allCourses = msg.courses
+		m.teachingCourses = msg.teachingCourses
+		m.enrolledCourses = msg.enrolledCourses
+		m.applyCourseView(previous)
+		m.status = fmt.Sprintf(
+			"Loaded %d classes (Teaching: %d, Enrolled: %d) at %s",
+			len(m.allCourses),
+			len(m.teachingCourses),
+			len(m.enrolledCourses),
+			time.Now().Format(time.Kitchen),
+		)
 		m.refreshPanels()
 		return m, nil
 	case tea.KeyMsg:
@@ -41,7 +51,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.classMode {
 				cycleList(&m.classTabs, 1)
 			} else {
+				previous := m.selectedCourseID()
 				cycleList(&m.globalList, 1)
+				m.applyCourseView(previous)
 			}
 			m.refreshPanels()
 			return m, nil
@@ -49,7 +61,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.classMode {
 				cycleList(&m.classTabs, -1)
 			} else {
+				previous := m.selectedCourseID()
 				cycleList(&m.globalList, -1)
+				m.applyCourseView(previous)
 			}
 			m.refreshPanels()
 			return m, nil
@@ -64,7 +78,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshPanels()
 			return m, nil
 		case key.Matches(msg, m.keys.Refresh):
-			m.status = "Refreshing classes..."
+			m.status = "Refreshing classes from Google Classroom..."
 			m.refreshPanels()
 			return m, m.refreshCourses()
 		case key.Matches(msg, m.keys.OpenWeb):
@@ -78,17 +92,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	prev := m.selectedCourseID()
+	prevCourseID := m.selectedCourseID()
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
-	m.courseList, cmd = m.courseList.Update(msg)
-	cmds = append(cmds, cmd)
+	if m.classMode {
+		m.classTabs, cmd = m.classTabs.Update(msg)
+		cmds = append(cmds, cmd)
+	} else {
+		m.courseList, cmd = m.courseList.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
-	m.content, cmd = m.content.Update(msg)
-	cmds = append(cmds, cmd)
+	if _, isKey := msg.(tea.KeyMsg); !isKey {
+		m.content, cmd = m.content.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
-	if prev != m.selectedCourseID() {
+	if prevCourseID != m.selectedCourseID() {
 		m.refreshPanels()
 	}
 
@@ -151,9 +172,9 @@ func (m *model) updateContent() {
 	case "Calendar":
 		m.content.SetContent("Calendar\n\nPress o to open Google Calendar in your browser.")
 	case "Teaching":
-		m.content.SetContent("Teaching\n\nUse `gc-cli classes list` to browse classes you teach.")
+		m.content.SetContent(fmt.Sprintf("Teaching\n\nShowing %d teaching classes.\nUse tab/shift+tab to switch views.", len(m.teachingCourses)))
 	case "Enrolled":
-		m.content.SetContent("Enrolled\n\nUse `gc-cli classes list` to browse classes you are enrolled in.")
+		m.content.SetContent(fmt.Sprintf("Enrolled\n\nShowing %d enrolled classes.\nUse tab/shift+tab to switch views.", len(m.enrolledCourses)))
 	default:
 		m.content.SetContent("")
 	}
@@ -193,11 +214,115 @@ func (m *model) openCurrentInBrowser() {
 
 func (m *model) refreshCourses() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		courses, _, err := m.client.ListCourses(ctx, classroom.ListParams{PageSize: 200})
-		return coursesMsg{courses: courses, err: err}
+
+		teaching, teachErr := fetchAllCourses(ctx, m.client, classroom.CourseListParams{
+			PageSize:     100,
+			TeacherID:    "me",
+			CourseStates: []string{"ACTIVE"},
+		})
+		enrolled, enrollErr := fetchAllCourses(ctx, m.client, classroom.CourseListParams{
+			PageSize:     100,
+			StudentID:    "me",
+			CourseStates: []string{"ACTIVE"},
+		})
+
+		all := mergeCourses(teaching, enrolled)
+		if len(all) == 0 {
+			fallback, fallbackErr := fetchAllCourses(ctx, m.client, classroom.CourseListParams{
+				PageSize:     100,
+				CourseStates: []string{"ACTIVE"},
+			})
+			if fallbackErr != nil {
+				if teachErr != nil {
+					return coursesMsg{err: teachErr}
+				}
+				if enrollErr != nil {
+					return coursesMsg{err: enrollErr}
+				}
+				return coursesMsg{err: fallbackErr}
+			}
+			all = fallback
+		}
+
+		return coursesMsg{
+			courses:         all,
+			teachingCourses: normalizeCourseList(teaching),
+			enrolledCourses: normalizeCourseList(enrolled),
+			err:             nil,
+		}
 	}
+}
+
+func fetchAllCourses(ctx context.Context, client classroom.ClassroomClient, params classroom.CourseListParams) ([]*gclassroom.Course, error) {
+	var out []*gclassroom.Course
+	pageToken := strings.TrimSpace(params.PageToken)
+	for {
+		pageParams := params
+		pageParams.PageToken = pageToken
+		items, next, err := client.ListCoursesFiltered(ctx, pageParams)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items...)
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	return normalizeCourseList(out), nil
+}
+
+func mergeCourses(groups ...[]*gclassroom.Course) []*gclassroom.Course {
+	byID := map[string]*gclassroom.Course{}
+	for _, list := range groups {
+		for _, c := range list {
+			if c == nil || strings.TrimSpace(c.Id) == "" {
+				continue
+			}
+			byID[c.Id] = c
+		}
+	}
+	out := make([]*gclassroom.Course, 0, len(byID))
+	for _, c := range byID {
+		out = append(out, c)
+	}
+	return normalizeCourseList(out)
+}
+
+func normalizeCourseList(courses []*gclassroom.Course) []*gclassroom.Course {
+	out := make([]*gclassroom.Course, 0, len(courses))
+	for _, c := range courses {
+		if c == nil {
+			continue
+		}
+		if c.CourseState != "" && c.CourseState != "ACTIVE" {
+			continue
+		}
+		out = append(out, c)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		leftName := strings.ToLower(strings.TrimSpace(out[i].Name))
+		rightName := strings.ToLower(strings.TrimSpace(out[j].Name))
+		if leftName == rightName {
+			return out[i].Id < out[j].Id
+		}
+		return leftName < rightName
+	})
+	return out
+}
+
+func (m *model) applyCourseView(previousCourseID string) {
+	switch m.currentGlobalView() {
+	case "Teaching":
+		m.courses = append([]*gclassroom.Course(nil), m.teachingCourses...)
+	case "Enrolled":
+		m.courses = append([]*gclassroom.Course(nil), m.enrolledCourses...)
+	default:
+		m.courses = append([]*gclassroom.Course(nil), m.allCourses...)
+	}
+	m.setCourseItems(previousCourseID)
 }
 
 func (m *model) setCourseItems(previousCourseID string) {

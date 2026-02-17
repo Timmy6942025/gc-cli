@@ -14,6 +14,7 @@ import (
 
 type ClassroomClient interface {
 	ListCourses(ctx context.Context, params ListParams) ([]*gclassroom.Course, string, error)
+	ListCoursesFiltered(ctx context.Context, params CourseListParams) ([]*gclassroom.Course, string, error)
 	GetCourse(ctx context.Context, courseID string) (*gclassroom.Course, error)
 	CreateCourse(ctx context.Context, course *gclassroom.Course) (*gclassroom.Course, error)
 	UpdateCourse(ctx context.Context, courseID string, patch *gclassroom.Course, updateMask []string) (*gclassroom.Course, error)
@@ -72,12 +73,28 @@ func NewClient(ctx context.Context, tokenSource oauth2.TokenSource) (*Client, er
 }
 
 func (c *Client) ListCourses(ctx context.Context, params ListParams) ([]*gclassroom.Course, string, error) {
+	return c.ListCoursesFiltered(ctx, CourseListParams{
+		PageSize:  params.PageSize,
+		PageToken: params.PageToken,
+	})
+}
+
+func (c *Client) ListCoursesFiltered(ctx context.Context, params CourseListParams) ([]*gclassroom.Course, string, error) {
 	call := c.svc.Courses.List().Context(ctx)
 	if params.PageSize > 0 {
 		call = call.PageSize(params.PageSize)
 	}
 	if params.PageToken != "" {
 		call = call.PageToken(params.PageToken)
+	}
+	if params.TeacherID != "" {
+		call = call.TeacherId(params.TeacherID)
+	}
+	if params.StudentID != "" {
+		call = call.StudentId(params.StudentID)
+	}
+	if len(params.CourseStates) > 0 {
+		call = call.CourseStates(params.CourseStates...)
 	}
 	resp, err := call.Do()
 	if err != nil {

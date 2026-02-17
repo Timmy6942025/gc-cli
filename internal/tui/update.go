@@ -22,7 +22,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
 		m.refreshPanels()
-		return m, nil
+		return m, m.maybeLoadCurrentContent(false)
 	case coursesMsg:
 		if msg.err != nil {
 			m.status = fmt.Sprintf("Refresh failed: %v", msg.err)
@@ -43,6 +43,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusLabel(),
 		)
 		m.refreshPanels()
+		return m, m.maybeLoadCurrentContent(true)
+	case contentLoadedMsg:
+		delete(m.contentLoading, msg.key)
+		if msg.err != nil && strings.TrimSpace(msg.content) == "" {
+			m.contentCache[msg.key] = fmt.Sprintf("Load failed:\n\n%v", msg.err)
+			m.status = fmt.Sprintf("Failed to load %s: %v", friendlyContentKey(msg.key), msg.err)
+		} else {
+			m.contentCache[msg.key] = msg.content
+			if msg.status != "" {
+				m.status = msg.status
+			}
+			if msg.err != nil {
+				m.status = msg.status + " (partial)"
+			}
+		}
+		if m.currentContentKey() == msg.key {
+			m.refreshPanels()
+		}
 		return m, nil
 	case tea.KeyMsg:
 		switch {
@@ -51,11 +69,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.NextPane):
 			m.moveFocus(1)
 			m.refreshPanels()
-			return m, nil
+			return m, m.maybeLoadCurrentContent(false)
 		case key.Matches(msg, m.keys.PrevPane):
 			m.moveFocus(-1)
 			m.refreshPanels()
-			return m, nil
+			return m, m.maybeLoadCurrentContent(false)
 		case key.Matches(msg, m.keys.NextViewTab):
 			previous := m.selectedCourseID()
 			if m.classMode {
@@ -65,7 +83,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.applyCourseView(previous)
 			}
 			m.refreshPanels()
-			return m, nil
+			return m, m.maybeLoadCurrentContent(false)
 		case key.Matches(msg, m.keys.PrevViewTab):
 			previous := m.selectedCourseID()
 			if m.classMode {
@@ -75,23 +93,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.applyCourseView(previous)
 			}
 			m.refreshPanels()
-			return m, nil
+			return m, m.maybeLoadCurrentContent(false)
 		case key.Matches(msg, m.keys.OpenClass):
 			if m.selectedCourse() != nil {
 				m.classMode = true
 				m.focus = focusTabs
 				m.refreshPanels()
 			}
-			return m, nil
+			return m, m.maybeLoadCurrentContent(false)
 		case key.Matches(msg, m.keys.Back):
 			m.classMode = false
 			if m.focus == focusTabs {
 				m.focus = focusCourses
 			}
 			m.refreshPanels()
-			return m, nil
+			return m, m.maybeLoadCurrentContent(false)
 		case key.Matches(msg, m.keys.Refresh):
 			m.status = fmt.Sprintf("Refreshing classes from Google Classroom... (Focus: %s)", m.focusLabel())
+			m.resetContentCache()
 			m.refreshPanels()
 			return m, m.refreshCourses()
 		case key.Matches(msg, m.keys.OpenWeb):
@@ -120,17 +139,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focus = focusCourses
 			m.courseList, cmd = m.courseList.Update(msg)
 		}
+	case focusContent:
+		m.content, cmd = m.content.Update(msg)
 	default:
 		m.courseList, cmd = m.courseList.Update(msg)
 	}
 
+	changed := false
 	if m.currentGlobalView() != prevGlobalView {
 		m.applyCourseView(prevCourseID)
+		changed = true
 	}
 	if prevCourseID != m.selectedCourseID() || prevGlobalView != m.currentGlobalView() || prevClassTab != m.currentClassTab() {
 		m.refreshPanels()
+		changed = true
 	}
 
+	loadCmd := m.maybeLoadCurrentContent(false)
+	if changed {
+		return m, tea.Batch(cmd, loadCmd)
+	}
+	if loadCmd != nil {
+		return m, tea.Batch(cmd, loadCmd)
+	}
 	return m, cmd
 }
 
@@ -139,6 +170,7 @@ func (m *model) moveFocus(step int) {
 	if m.classMode {
 		areas = append(areas, focusTabs)
 	}
+	areas = append(areas, focusContent)
 	if len(areas) == 0 {
 		m.focus = focusCourses
 		return
@@ -163,6 +195,8 @@ func (m *model) focusLabel() string {
 		return "Global Views"
 	case focusTabs:
 		return "Class Tabs"
+	case focusContent:
+		return "Content"
 	default:
 		return "Classes"
 	}
@@ -193,42 +227,57 @@ func (m *model) updateContent() {
 
 	if m.classMode {
 		if course == nil {
-			m.content.SetContent("No class selected.")
+			m.setViewportContent("class:none", "No class selected.")
 			return
 		}
 		tab := m.currentClassTab()
-		switch tab {
-		case "Stream":
-			m.content.SetContent(fmt.Sprintf("Stream\n\nUse `gc-cli stream list --course %s` to view posts\nand `gc-cli stream post --course %s --text ...` to publish.", course.Id, course.Id))
-		case "Classwork":
-			m.content.SetContent(fmt.Sprintf("Classwork\n\nUse `gc-cli classwork list --course %s`\nto browse assignments/materials.\nUse create/edit/publish/schedule for full lifecycle.", course.Id))
-		case "People":
-			m.content.SetContent(fmt.Sprintf("People\n\nUse `gc-cli people list --course %s`\nto view teachers/students.\nUse invite/remove to manage roster.", course.Id))
-		case "Grades":
-			m.content.SetContent(fmt.Sprintf("Grades\n\nUse `gc-cli grades list --course %s`\nfor gradebook, or `gc-cli submissions grade ...`\nfor direct draft/assigned grade updates.", course.Id))
-		default:
-			m.content.SetContent("")
+		key := m.currentContentKey()
+		if m.contentLoading[key] {
+			m.setViewportContent(key, fmt.Sprintf("%s\n\nLoading from Google Classroom API...", tab))
+			return
 		}
+		if text, ok := m.contentCache[key]; ok {
+			m.setViewportContent(key, text)
+			return
+		}
+		m.setViewportContent(key, fmt.Sprintf("%s\n\nNo data loaded yet. Press r to refresh.", tab))
 		return
 	}
 
 	switch m.currentGlobalView() {
 	case "Home":
 		if course == nil {
-			m.content.SetContent("Home\n\nSelect a class to enter Stream/Classwork/People/Grades.")
+			m.setViewportContent("global:home", "Home\n\nSelect a class to enter Stream/Classwork/People/Grades.")
 			return
 		}
-		m.content.SetContent(fmt.Sprintf("Home\n\nSelected class: %s\nCourse ID: %s\n\nUse tab/shift+tab to move focus between panes.\nPress enter to open class tabs, o to open this class in Classroom web.", course.Name, course.Id))
+		m.setViewportContent("global:home", fmt.Sprintf("Home\n\nSelected class: %s\nCourse ID: %s\n\nUse tab/shift+tab to move focus between panes.\nPress enter to open class tabs, o to open this class in Classroom web.", course.Name, course.Id))
 	case "To-do":
-		m.content.SetContent("To-do\n\nUse `gc-cli to-do list` to view pending student work.")
+		key := m.currentContentKey()
+		if m.contentLoading[key] {
+			m.setViewportContent(key, "To-do\n\nLoading from Google Classroom API...")
+			return
+		}
+		if text, ok := m.contentCache[key]; ok {
+			m.setViewportContent(key, text)
+			return
+		}
+		m.setViewportContent(key, "To-do\n\nNo data loaded yet. Press r to refresh.")
 	case "Calendar":
-		m.content.SetContent("Calendar\n\nPress o to open Google Calendar in your browser.")
+		m.setViewportContent("global:calendar", "Calendar\n\nPress o to open Google Calendar in your browser.")
 	case "Teaching":
-		m.content.SetContent(fmt.Sprintf("Teaching\n\nShowing %d teaching classes.\nUse up/down on Global Views, or [ and ] for quick view switching.", len(m.teachingCourses)))
+		m.setViewportContent("global:teaching", fmt.Sprintf("Teaching\n\nShowing %d teaching classes.\nUse up/down on Global Views, or [ and ] for quick view switching.", len(m.teachingCourses)))
 	case "Enrolled":
-		m.content.SetContent(fmt.Sprintf("Enrolled\n\nShowing %d enrolled classes.\nUse up/down on Global Views, or [ and ] for quick view switching.", len(m.enrolledCourses)))
+		m.setViewportContent("global:enrolled", fmt.Sprintf("Enrolled\n\nShowing %d enrolled classes.\nUse up/down on Global Views, or [ and ] for quick view switching.", len(m.enrolledCourses)))
 	default:
-		m.content.SetContent("")
+		m.setViewportContent("global:unknown", "")
+	}
+}
+
+func (m *model) setViewportContent(key, text string) {
+	m.content.SetContent(text)
+	if key != m.lastContentKey {
+		m.content.GotoTop()
+		m.lastContentKey = key
 	}
 }
 

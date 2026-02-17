@@ -1,6 +1,6 @@
 {
   "name": "gc-classroom-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Google Classroom CLI/TUI packaged for npm and bun",
   "license": "UNLICENSED",
   "type": "commonjs",

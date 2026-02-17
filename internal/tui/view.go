@@ -21,7 +21,7 @@ func (m *model) View() string {
 		middleStyle = styles.panelFocused
 	}
 	rightStyle := styles.panel
-	if m.classMode && m.focus == focusTabs {
+	if m.focus == focusTabs || m.focus == focusContent {
 		rightStyle = styles.panelFocused
 	}
 

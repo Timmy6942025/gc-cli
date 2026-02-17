@@ -30,7 +30,7 @@ gc-cli
 In the TUI:
 
 ```bash
-tab / shift+tab   # move focus between Global Views, Classes, Class Tabs
+tab / shift+tab   # move focus between Global Views, Classes, Class Tabs, Content
 up/down (or j/k)  # move inside the focused pane
 [ / ]             # quick switch global view (or class tab when class is open)
 enter             # open class tabs for selected class
@@ -38,6 +38,8 @@ esc               # return from class tabs to global mode
 r                 # refresh from Classroom
 o                 # open current context in browser
 ```
+
+`Stream`, `Classwork`, `People`, `Grades`, and `To-do` load real Classroom API data in the content pane.
 
 ## Seamless OAuth
 

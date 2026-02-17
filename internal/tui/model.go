@@ -35,6 +35,10 @@ type model struct {
 	classMode bool
 	focus     focusArea
 
+	contentCache   map[string]string
+	contentLoading map[string]bool
+	lastContentKey string
+
 	width       int
 	height      int
 	leftWidth   int
@@ -48,6 +52,7 @@ const (
 	focusGlobal focusArea = iota
 	focusCourses
 	focusTabs
+	focusContent
 )
 
 type coursesMsg struct {
@@ -113,21 +118,23 @@ func NewModel(client classroom.ClassroomClient, resolver webhandoff.HandoffResol
 	helper.ShowAll = false
 
 	m := &model{
-		client:      client,
-		resolver:    resolver,
-		keys:        newKeyMap(),
-		help:        helper,
-		globalList:  globalList,
-		courseList:  courseList,
-		classTabs:   tabs,
-		courseInfo:  courseInfo,
-		content:     content,
-		status:      "Use tab/shift+tab to change pane focus, up/down to navigate, [ ] to switch view/tab, enter to open class, ? for help.",
-		classMode:   false,
-		focus:       focusCourses,
-		leftWidth:   24,
-		middleWidth: 44,
-		rightWidth:  44,
+		client:         client,
+		resolver:       resolver,
+		keys:           newKeyMap(),
+		help:           helper,
+		globalList:     globalList,
+		courseList:     courseList,
+		classTabs:      tabs,
+		courseInfo:     courseInfo,
+		content:        content,
+		status:         "Use tab/shift+tab to change pane focus, up/down to navigate, [ ] to switch view/tab, enter to open class, esc to go back.",
+		classMode:      false,
+		focus:          focusCourses,
+		contentCache:   map[string]string{},
+		contentLoading: map[string]bool{},
+		leftWidth:      24,
+		middleWidth:    44,
+		rightWidth:     44,
 	}
 	m.refreshPanels()
 	return m

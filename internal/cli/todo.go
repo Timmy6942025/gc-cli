@@ -9,15 +9,25 @@ import (
 )
 
 func newTodoCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "to-do", Short: "View To-do work"}
-	cmd.AddCommand(newTodoListCmd(app))
+	listCmd := newTodoListCmd(app)
+	cmd := &cobra.Command{
+		Use:     "to-do",
+		Aliases: []string{"todo"},
+		Short:   "View To-do work",
+		Example: "  gc to-do\n  gc todo list",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return listCmd.RunE(cmd, args)
+		},
+	}
+	cmd.AddCommand(listCmd)
 	return cmd
 }
 
 func newTodoListCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List student To-do items",
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List student To-do items",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkMeReadonly, auth.ScopeCoursesReadonly})

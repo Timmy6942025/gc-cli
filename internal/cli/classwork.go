@@ -15,7 +15,12 @@ import (
 )
 
 func newClassworkCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "classwork", Short: "Manage Classwork"}
+	cmd := &cobra.Command{
+		Use:     "classwork",
+		Aliases: []string{"coursework", "cw"},
+		Short:   "Manage Classwork",
+		Example: "  gc classwork list -c <course_id>\n  gc cw create -c <course_id> --title \"Worksheet 4\"\n  gc classwork publish -c <course_id> -w <course_work_id>",
+	}
 	cmd.AddCommand(
 		newClassworkListCmd(app),
 		newClassworkCreateCmd(app),
@@ -32,9 +37,15 @@ func newClassworkListCmd(app *App) *cobra.Command {
 	var pageSize int64
 	var pageToken string
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List classwork items",
+		Use:     "list [course_id]",
+		Aliases: []string{"ls"},
+		Short:   "List classwork items",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudentsReadonly})
 			if err != nil {
@@ -56,10 +67,9 @@ func newClassworkListCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().Int64Var(&pageSize, "page-size", 50, "Number of classwork items to return")
-	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token")
-	_ = cmd.MarkFlagRequired("course")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().Int64VarP(&pageSize, "page-size", "n", 50, "Number of classwork items to return")
+	cmd.Flags().StringVarP(&pageToken, "page-token", "p", "", "Pagination token")
 	return cmd
 }
 
@@ -71,9 +81,15 @@ func newClassworkCreateCmd(app *App) *cobra.Command {
 	var uploadPaths []string
 
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create classwork",
+		Use:     "create [course_id]",
+		Aliases: []string{"add", "new"},
+		Short:   "Create classwork",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			requiredScopes := []string{auth.ScopeCourseWorkStudents}
 			if len(driveFileIDs) > 0 || len(uploadPaths) > 0 {
@@ -115,7 +131,7 @@ func newClassworkCreateCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
 	cmd.Flags().StringVar(&title, "title", "", "Classwork title")
 	cmd.Flags().StringVar(&description, "description", "", "Classwork description")
 	cmd.Flags().StringVar(&workType, "type", "ASSIGNMENT", "Classwork type")
@@ -126,7 +142,6 @@ func newClassworkCreateCmd(app *App) *cobra.Command {
 	cmd.Flags().StringArrayVar(&driveFileIDs, "drive-file-id", nil, "Attach a Google Drive file ID (repeatable)")
 	cmd.Flags().StringArrayVar(&linkURLs, "link", nil, "Attach a link URL (repeatable)")
 	cmd.Flags().StringArrayVar(&uploadPaths, "upload-file", nil, "Upload and attach a local file path (repeatable)")
-	_ = cmd.MarkFlagRequired("course")
 	_ = cmd.MarkFlagRequired("title")
 	return cmd
 }
@@ -137,9 +152,18 @@ func newClassworkEditCmd(app *App) *cobra.Command {
 	var setMaxPoints bool
 
 	cmd := &cobra.Command{
-		Use:   "edit",
-		Short: "Edit classwork",
+		Use:     "edit [course_id] [course_work_id]",
+		Aliases: []string{"update", "set"},
+		Short:   "Edit classwork",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(courseWorkID, "course-work", "course_work_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudents})
 			if err != nil {
@@ -181,25 +205,32 @@ func newClassworkEditCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID")
 	cmd.Flags().StringVar(&title, "title", "", "Classwork title")
 	cmd.Flags().StringVar(&description, "description", "", "Classwork description")
 	cmd.Flags().StringVar(&topicID, "topic", "", "Topic ID")
 	cmd.Flags().Float64Var(&maxPoints, "max-points", 0, "Maximum points")
 	cmd.Flags().BoolVar(&setMaxPoints, "set-max-points", false, "Apply max-points value")
 	cmd.Flags().StringVar(&dueRaw, "due", "", "Due timestamp (RFC3339 or YYYY-MM-DD)")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("course-work")
 	return cmd
 }
 
 func newClassworkPublishCmd(app *App) *cobra.Command {
 	var courseID, courseWorkID string
 	cmd := &cobra.Command{
-		Use:   "publish",
-		Short: "Publish classwork",
+		Use:     "publish [course_id] [course_work_id]",
+		Aliases: []string{"pub"},
+		Short:   "Publish classwork",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(courseWorkID, "course-work", "course_work_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudents})
 			if err != nil {
@@ -216,19 +247,26 @@ func newClassworkPublishCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("course-work")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID")
 	return cmd
 }
 
 func newClassworkScheduleCmd(app *App) *cobra.Command {
 	var courseID, courseWorkID, whenRaw string
 	cmd := &cobra.Command{
-		Use:   "schedule",
-		Short: "Schedule classwork publication",
+		Use:     "schedule [course_id] [course_work_id]",
+		Aliases: []string{"sched"},
+		Short:   "Schedule classwork publication",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(courseWorkID, "course-work", "course_work_id"); err != nil {
+				return err
+			}
 			when, err := time.Parse(time.RFC3339, whenRaw)
 			if err != nil {
 				return fmt.Errorf("parse --when: %w", err)
@@ -249,11 +287,9 @@ func newClassworkScheduleCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID")
 	cmd.Flags().StringVar(&whenRaw, "when", "", "Publish timestamp (RFC3339)")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("course-work")
 	_ = cmd.MarkFlagRequired("when")
 	return cmd
 }
@@ -261,9 +297,18 @@ func newClassworkScheduleCmd(app *App) *cobra.Command {
 func newClassworkDeleteCmd(app *App) *cobra.Command {
 	var courseID, courseWorkID string
 	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete classwork",
+		Use:     "delete [course_id] [course_work_id]",
+		Aliases: []string{"rm", "del"},
+		Short:   "Delete classwork",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(courseWorkID, "course-work", "course_work_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudents})
 			if err != nil {
@@ -279,10 +324,8 @@ func newClassworkDeleteCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("course-work")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID")
 	return cmd
 }
 

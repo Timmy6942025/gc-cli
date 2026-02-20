@@ -12,7 +12,12 @@ import (
 )
 
 func newPeopleCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "people", Short: "Manage People"}
+	cmd := &cobra.Command{
+		Use:     "people",
+		Aliases: []string{"roster", "members"},
+		Short:   "Manage People",
+		Example: "  gc people list -c <course_id>\n  gc roster invite -c <course_id> --role student -u student@example.com",
+	}
 	cmd.AddCommand(newPeopleListCmd(app), newPeopleInviteCmd(app), newPeopleRemoveCmd(app))
 	return cmd
 }
@@ -21,9 +26,15 @@ func newPeopleListCmd(app *App) *cobra.Command {
 	var courseID, role, pageToken string
 	var pageSize int64
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List people in a class",
+		Use:     "list [course_id]",
+		Aliases: []string{"ls"},
+		Short:   "List people in a class",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeRostersReadonly})
 			if err != nil {
@@ -73,20 +84,28 @@ func newPeopleListCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&role, "role", "all", "Role filter: all|teachers|students")
-	cmd.Flags().Int64Var(&pageSize, "page-size", 50, "Number of results")
-	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token")
-	_ = cmd.MarkFlagRequired("course")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&role, "role", "r", "all", "Role filter: all|teachers|students")
+	cmd.Flags().Int64VarP(&pageSize, "page-size", "n", 50, "Number of results")
+	cmd.Flags().StringVarP(&pageToken, "page-token", "p", "", "Pagination token")
 	return cmd
 }
 
 func newPeopleInviteCmd(app *App) *cobra.Command {
 	var courseID, role, userID string
 	cmd := &cobra.Command{
-		Use:   "invite",
-		Short: "Invite a teacher or student",
+		Use:     "invite [course_id] [user_id_or_email]",
+		Aliases: []string{"add"},
+		Short:   "Invite a teacher or student",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &userID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(userID, "user", "user_id_or_email"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeRosters})
 			if err != nil {
@@ -112,20 +131,27 @@ func newPeopleInviteCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&role, "role", "student", "Role: teacher|student")
-	cmd.Flags().StringVar(&userID, "user", "", "User ID or email")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("user")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&role, "role", "r", "student", "Role: teacher|student")
+	cmd.Flags().StringVarP(&userID, "user", "u", "", "User ID or email")
 	return cmd
 }
 
 func newPeopleRemoveCmd(app *App) *cobra.Command {
 	var courseID, role, userID string
 	cmd := &cobra.Command{
-		Use:   "remove",
-		Short: "Remove a teacher or student",
+		Use:     "remove [course_id] [user_id_or_email]",
+		Aliases: []string{"rm", "del"},
+		Short:   "Remove a teacher or student",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &userID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(userID, "user", "user_id_or_email"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeRosters})
 			if err != nil {
@@ -150,11 +176,9 @@ func newPeopleRemoveCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&role, "role", "student", "Role: teacher|student")
-	cmd.Flags().StringVar(&userID, "user", "", "User ID or email")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("user")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&role, "role", "r", "student", "Role: teacher|student")
+	cmd.Flags().StringVarP(&userID, "user", "u", "", "User ID or email")
 	return cmd
 }
 

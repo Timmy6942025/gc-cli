@@ -10,7 +10,12 @@ import (
 )
 
 func newGradesCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "grades", Short: "Manage grades"}
+	cmd := &cobra.Command{
+		Use:     "grades",
+		Aliases: []string{"gradebook"},
+		Short:   "Manage grades",
+		Example: "  gc grades list -c <course_id>\n  gc grades set-draft -c <course_id> -w <course_work_id> -s <submission_id> -v 95",
+	}
 	cmd.AddCommand(newGradesListCmd(app), newGradesSetDraftCmd(app), newGradesSetAssignedCmd(app), newGradesReturnCmd(app))
 	return cmd
 }
@@ -18,9 +23,15 @@ func newGradesCmd(app *App) *cobra.Command {
 func newGradesListCmd(app *App) *cobra.Command {
 	var courseID, courseWorkID string
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List grades",
+		Use:     "list [course_id] [course_work_id]",
+		Aliases: []string{"ls"},
+		Short:   "List grades",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudentsReadonly})
 			if err != nil {
@@ -71,27 +82,41 @@ func newGradesListCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID (optional)")
-	_ = cmd.MarkFlagRequired("course")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID (optional)")
 	return cmd
 }
 
 func newGradesSetDraftCmd(app *App) *cobra.Command {
-	return newGradesSetCmd(app, "set-draft", true)
+	cmd := newGradesSetCmd(app, "set-draft", true)
+	cmd.Aliases = []string{"draft"}
+	return cmd
 }
 
 func newGradesSetAssignedCmd(app *App) *cobra.Command {
-	return newGradesSetCmd(app, "set-assigned", false)
+	cmd := newGradesSetCmd(app, "set-assigned", false)
+	cmd.Aliases = []string{"assigned"}
+	return cmd
 }
 
 func newGradesSetCmd(app *App, use string, draft bool) *cobra.Command {
 	var courseID, courseWorkID, submissionID string
 	var value float64
 	cmd := &cobra.Command{
-		Use:   use,
+		Use:   use + " [course_id] [course_work_id] [submission_id]",
 		Short: "Set a grade value",
+		Args:  cobra.MaximumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID, &submissionID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(courseWorkID, "course-work", "course_work_id"); err != nil {
+				return err
+			}
+			if err := requireValue(submissionID, "submission", "submission_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudents})
 			if err != nil {
@@ -114,13 +139,10 @@ func newGradesSetCmd(app *App, use string, draft bool) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID")
-	cmd.Flags().StringVar(&submissionID, "submission", "", "Submission ID")
-	cmd.Flags().Float64Var(&value, "value", 0, "Grade value")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("course-work")
-	_ = cmd.MarkFlagRequired("submission")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID")
+	cmd.Flags().StringVarP(&submissionID, "submission", "s", "", "Submission ID")
+	cmd.Flags().Float64VarP(&value, "value", "v", 0, "Grade value")
 	_ = cmd.MarkFlagRequired("value")
 	return cmd
 }
@@ -128,9 +150,21 @@ func newGradesSetCmd(app *App, use string, draft bool) *cobra.Command {
 func newGradesReturnCmd(app *App) *cobra.Command {
 	var courseID, courseWorkID, submissionID string
 	cmd := &cobra.Command{
-		Use:   "return",
-		Short: "Return graded work",
+		Use:     "return [course_id] [course_work_id] [submission_id]",
+		Aliases: []string{"send-back"},
+		Short:   "Return graded work",
+		Args:    cobra.MaximumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID, &submissionID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(courseWorkID, "course-work", "course_work_id"); err != nil {
+				return err
+			}
+			if err := requireValue(submissionID, "submission", "submission_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudents})
 			if err != nil {
@@ -147,11 +181,8 @@ func newGradesReturnCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID")
-	cmd.Flags().StringVar(&submissionID, "submission", "", "Submission ID")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("course-work")
-	_ = cmd.MarkFlagRequired("submission")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID")
+	cmd.Flags().StringVarP(&submissionID, "submission", "s", "", "Submission ID")
 	return cmd
 }

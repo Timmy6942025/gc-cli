@@ -13,8 +13,10 @@ import (
 
 func newAuthCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "auth",
-		Short: "Authenticate with Google OAuth2",
+		Use:     "auth",
+		Aliases: []string{"oauth"},
+		Short:   "Authenticate with Google OAuth2",
+		Example: "  gc auth login\n  gc auth status -p default\n  gc auth logout -p default",
 	}
 	cmd.AddCommand(newAuthLoginCmd(app), newAuthStatusCmd(app), newAuthLogoutCmd(app))
 	return cmd
@@ -28,8 +30,10 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 	var clientSecret string
 
 	cmd := &cobra.Command{
-		Use:   "login",
-		Short: "Authenticate a profile",
+		Use:     "login",
+		Aliases: []string{"signin"},
+		Short:   "Authenticate a profile",
+		Example: "  gc auth login\n  gc auth login -p teacher --scopes classroom.courses.readonly,classroom.rosters.readonly",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {
@@ -73,8 +77,8 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&profile, "profile", "", "Profile name (defaults to active profile)")
-	cmd.Flags().StringVar(&scopesRaw, "scopes", "", "Comma-separated OAuth scopes")
+	cmd.Flags().StringVarP(&profile, "profile", "p", "", "Profile name (defaults to active profile)")
+	cmd.Flags().StringVarP(&scopesRaw, "scopes", "s", "", "Comma-separated OAuth scopes")
 	cmd.Flags().BoolVar(&openBrowser, "open-browser", true, "Automatically open the authorization URL in your browser")
 	cmd.Flags().StringVar(&clientID, "client-id", "", "OAuth client ID to persist in config")
 	cmd.Flags().StringVar(&clientSecret, "client-secret", "", "OAuth client secret to persist in config")
@@ -84,8 +88,9 @@ func newAuthLoginCmd(app *App) *cobra.Command {
 func newAuthStatusCmd(app *App) *cobra.Command {
 	var profile string
 	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "Show authentication status",
+		Use:     "status",
+		Aliases: []string{"whoami"},
+		Short:   "Show authentication status",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			status, err := app.Auth.Status(profile)
 			if err != nil {
@@ -105,15 +110,16 @@ func newAuthStatusCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&profile, "profile", "", "Profile name (defaults to active profile)")
+	cmd.Flags().StringVarP(&profile, "profile", "p", "", "Profile name (defaults to active profile)")
 	return cmd
 }
 
 func newAuthLogoutCmd(app *App) *cobra.Command {
 	var profile string
 	cmd := &cobra.Command{
-		Use:   "logout",
-		Short: "Remove the saved OAuth token",
+		Use:     "logout",
+		Aliases: []string{"signout"},
+		Short:   "Remove the saved OAuth token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := app.Auth.Logout(profile); err != nil {
 				return err
@@ -128,7 +134,7 @@ func newAuthLogoutCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&profile, "profile", "", "Profile name (defaults to active profile)")
+	cmd.Flags().StringVarP(&profile, "profile", "p", "", "Profile name (defaults to active profile)")
 	return cmd
 }
 

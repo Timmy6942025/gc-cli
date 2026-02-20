@@ -1,15 +1,11 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-
-	"github.com/timothy/gc-cli/internal/auth"
-	"github.com/timothy/gc-cli/internal/tui"
 )
 
 func Execute() int {
@@ -35,19 +31,12 @@ func NewRootCmd(app *App) *cobra.Command {
 		useName = "gc-cli"
 	}
 	cmd := &cobra.Command{
-		Use:   useName,
-		Short: "Google Classroom CLI/TUI",
-		Long:  "A Google Classroom terminal client with API-first parity and seamless web handoff.",
+		Use:     useName,
+		Short:   "Google Classroom CLI",
+		Long:    "A Google Classroom terminal client with API-first parity and seamless web handoff.",
+		Example: "  gc auth login\n  gc classes list\n  gc classes show <course_id>\n  gc submissions turn-in <course_id> <course_work_id> <submission_id>\n  gc todo",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			if ctx == nil {
-				ctx = context.Background()
-			}
-			client, err := app.ClassroomClient(ctx, auth.DefaultReadScopes)
-			if err != nil {
-				return err
-			}
-			return tui.Run(client, app.Resolver)
+			return cmd.Help()
 		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			app.SetJSONOutput(jsonOutput)

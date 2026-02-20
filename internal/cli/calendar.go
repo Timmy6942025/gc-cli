@@ -10,15 +10,21 @@ import (
 )
 
 func newCalendarCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "calendar", Short: "Calendar shortcuts"}
+	cmd := &cobra.Command{
+		Use:     "calendar",
+		Aliases: []string{"cal"},
+		Short:   "Calendar shortcuts",
+		Example: "  gc calendar open",
+	}
 	cmd.AddCommand(newCalendarOpenCmd(app))
 	return cmd
 }
 
 func newCalendarOpenCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "open",
-		Short: "Open Google Calendar",
+		Use:     "open",
+		Aliases: []string{"launch"},
+		Short:   "Open Google Calendar",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			h := app.Resolver.Resolve("calendar", "", nil)
 			if h.Blocked {

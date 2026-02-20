@@ -1,63 +1,29 @@
 # gc-cli
 
-Google Classroom CLI/TUI built in Go, packaged for npm/bun so users can run `gc-cli` (or `gc`) directly.
+Google Classroom CLI built in Go, packaged for npm/bun so users can run `gc-cli` (or `gc`) directly.
 
 ## Install
 
 ### npm
 
 ```bash
-npm install -g gc-classroom-cli
+npm install -g google-classroom-cli
 ```
 
 ### bun
 
 ```bash
-bun add -g gc-classroom-cli
+bun add -g google-classroom-cli
 ```
 
 Then run:
 
 ```bash
 gc-cli auth login
-gc-cli
+gc-cli classes list
 ```
 
 `gc` is also installed as an alias.
-
-## TUI navigation
-
-In the TUI:
-
-```bash
-tab / shift+tab   # move focus between Global Views, Classes, Class Tabs, Content
-up/down (or j/k)  # move inside the focused pane
-[ / ]             # quick switch global view (or class tab when class is open)
-a                 # open contextual Actions menu (simple guided flow)
-:                 # open in-TUI command bar (run any gc-cli subcommand)
-enter             # open class tabs for selected class
-esc               # return from class tabs to global mode
-r                 # refresh from Classroom
-o                 # open current context in browser
-```
-
-`Stream`, `Classwork`, `People`, `Grades`, and `To-do` load real Classroom API data in the content pane.
-Actions menu supports guided operations (no manual command writing) for:
-- `Stream`: post, edit, delete announcements
-- `Classwork`: create, edit, publish, schedule, delete, turn in/mark as done, unsubmit/reclaim
-- `People`: invite/remove teacher or student
-- `Grades`: set draft/assigned grade, return submission
-- `To-do`: turn in/mark as done, unsubmit/reclaim by `#` item
-
-Use `#<number>` shortcuts where shown in tab lists (for example `#1` for first classwork item) when prompted.
-Use command bar examples:
-
-```bash
-stream post --course <course_id> --text "Reminder: quiz Friday"
-classwork create --course <course_id> --title "Worksheet 4"
-people invite --course <course_id> --role student --user student@example.com
-submissions turn-in --course <course_id> --course-work <work_id> --submission <submission_id>
-```
 
 ## Seamless OAuth
 
@@ -73,22 +39,40 @@ export GC_OAUTH_CLIENT_SECRET="..."
 ## Command surface
 
 ```bash
-gc-cli                          # launch TUI
+gc-cli                          # show command help
 gc-cli auth login|status|logout
 
-gc-cli classes list|show|create|update|archive|restore|delete
-gc-cli stream list|post|edit|delete
-gc-cli classwork list|create|edit|publish|schedule|delete
-gc-cli submissions list|show|turn-in|unsubmit|grade|return|reclaim
-gc-cli people list|invite|remove
-gc-cli grades list|set-draft|set-assigned|return
-gc-cli topics list|create|edit|delete|move
-gc-cli to-do list
+gc-cli classes|courses list|show|get|create|add|update|edit|archive|restore|delete|rm
+gc-cli stream|announcements list|ls|post|add|edit|update|delete|rm
+gc-cli classwork|coursework|cw list|ls|create|add|edit|update|publish|schedule|delete|rm
+gc-cli submissions|subs list|ls|show|get|turn-in|submit|unsubmit|grade|return|reclaim
+gc-cli people|roster list|ls|invite|add|remove|rm
+gc-cli grades|gradebook list|ls|set-draft|draft|set-assigned|assigned|return
+gc-cli topics|topic list|ls|create|add|edit|update|delete|rm|move
+gc-cli to-do|todo [list]
 gc-cli calendar open
-gc-cli handoff open <feature> --course <id>
+gc-cli handoff|web open <feature> [course_id]
 ```
 
 Use `--json` with any command for machine-readable output.
+
+Positional ID shortcuts are supported for common commands (flags still work):
+
+```bash
+gc-cli classes show <course_id>
+gc-cli classwork publish <course_id> <course_work_id>
+gc-cli submissions turn-in <course_id> <course_work_id> <submission_id>
+gc-cli people invite <course_id> <user_id_or_email> --role student
+```
+
+Common short flags for quicker usage:
+
+```bash
+-c  # --course
+-w  # --course-work
+-s  # --submission
+-u  # --user
+```
 
 ## Package maintainers
 

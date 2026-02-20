@@ -11,7 +11,12 @@ import (
 )
 
 func newStreamCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "stream", Short: "Manage Stream announcements"}
+	cmd := &cobra.Command{
+		Use:     "stream",
+		Aliases: []string{"announcements", "ann"},
+		Short:   "Manage Stream announcements",
+		Example: "  gc stream list -c <course_id>\n  gc stream post -c <course_id> --text \"Reminder: quiz Friday\"",
+	}
 	cmd.AddCommand(
 		newStreamListCmd(app),
 		newStreamPostCmd(app),
@@ -26,9 +31,15 @@ func newStreamListCmd(app *App) *cobra.Command {
 	var pageSize int64
 	var pageToken string
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List announcements in a class stream",
+		Use:     "list [course_id]",
+		Aliases: []string{"ls"},
+		Short:   "List announcements in a class stream",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeAnnouncementsReadonly})
 			if err != nil {
@@ -50,10 +61,9 @@ func newStreamListCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().Int64Var(&pageSize, "page-size", 50, "Number of announcements to return")
-	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token")
-	_ = cmd.MarkFlagRequired("course")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().Int64VarP(&pageSize, "page-size", "n", 50, "Number of announcements to return")
+	cmd.Flags().StringVarP(&pageToken, "page-token", "p", "", "Pagination token")
 	return cmd
 }
 
@@ -62,9 +72,15 @@ func newStreamPostCmd(app *App) *cobra.Command {
 	var text string
 	var state string
 	cmd := &cobra.Command{
-		Use:   "post",
-		Short: "Post an announcement",
+		Use:     "post [course_id]",
+		Aliases: []string{"add", "create"},
+		Short:   "Post an announcement",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeAnnouncements})
 			if err != nil {
@@ -82,10 +98,9 @@ func newStreamPostCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
 	cmd.Flags().StringVar(&text, "text", "", "Announcement text")
 	cmd.Flags().StringVar(&state, "state", "PUBLISHED", "Announcement state: PUBLISHED or DRAFT")
-	_ = cmd.MarkFlagRequired("course")
 	_ = cmd.MarkFlagRequired("text")
 	return cmd
 }
@@ -93,9 +108,18 @@ func newStreamPostCmd(app *App) *cobra.Command {
 func newStreamEditCmd(app *App) *cobra.Command {
 	var courseID, announcementID, text string
 	cmd := &cobra.Command{
-		Use:   "edit",
-		Short: "Edit an announcement",
+		Use:     "edit [course_id] [announcement_id]",
+		Aliases: []string{"update", "set"},
+		Short:   "Edit an announcement",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &announcementID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(announcementID, "announcement", "announcement_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeAnnouncements})
 			if err != nil {
@@ -112,11 +136,9 @@ func newStreamEditCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&announcementID, "announcement", "", "Announcement ID")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&announcementID, "announcement", "a", "", "Announcement ID")
 	cmd.Flags().StringVar(&text, "text", "", "Updated text")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("announcement")
 	_ = cmd.MarkFlagRequired("text")
 	return cmd
 }
@@ -124,9 +146,18 @@ func newStreamEditCmd(app *App) *cobra.Command {
 func newStreamDeleteCmd(app *App) *cobra.Command {
 	var courseID, announcementID string
 	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete an announcement",
+		Use:     "delete [course_id] [announcement_id]",
+		Aliases: []string{"rm", "del"},
+		Short:   "Delete an announcement",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &announcementID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(announcementID, "announcement", "announcement_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeAnnouncements})
 			if err != nil {
@@ -142,10 +173,8 @@ func newStreamDeleteCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&announcementID, "announcement", "", "Announcement ID")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("announcement")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&announcementID, "announcement", "a", "", "Announcement ID")
 	return cmd
 }
 

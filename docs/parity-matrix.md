@@ -2,7 +2,7 @@
 
 Status values:
 
-- `Implemented`: Fully handled in API/CLI/TUI.
+- `Implemented`: Fully handled in API/CLI.
 - `Handoff`: Not exposed in official API for full mutation parity; routed to web handoff.
 - `Preview`: Supported behind preview capability gating.
 

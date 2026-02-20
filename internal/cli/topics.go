@@ -10,7 +10,12 @@ import (
 )
 
 func newTopicsCmd(app *App) *cobra.Command {
-	cmd := &cobra.Command{Use: "topics", Short: "Manage classwork topics"}
+	cmd := &cobra.Command{
+		Use:     "topics",
+		Aliases: []string{"topic"},
+		Short:   "Manage classwork topics",
+		Example: "  gc topics list -c <course_id>\n  gc topics move -c <course_id> -w <course_work_id> -t <topic_id>",
+	}
 	cmd.AddCommand(
 		newTopicsListCmd(app),
 		newTopicsCreateCmd(app),
@@ -25,9 +30,15 @@ func newTopicsListCmd(app *App) *cobra.Command {
 	var courseID, pageToken string
 	var pageSize int64
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List topics",
+		Use:     "list [course_id]",
+		Aliases: []string{"ls"},
+		Short:   "List topics",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeTopicsReadonly})
 			if err != nil {
@@ -49,19 +60,24 @@ func newTopicsListCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().Int64Var(&pageSize, "page-size", 50, "Number of topics")
-	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token")
-	_ = cmd.MarkFlagRequired("course")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().Int64VarP(&pageSize, "page-size", "n", 50, "Number of topics")
+	cmd.Flags().StringVarP(&pageToken, "page-token", "p", "", "Pagination token")
 	return cmd
 }
 
 func newTopicsCreateCmd(app *App) *cobra.Command {
 	var courseID, name string
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a topic",
+		Use:     "create [course_id]",
+		Aliases: []string{"add"},
+		Short:   "Create a topic",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeTopics})
 			if err != nil {
@@ -78,9 +94,8 @@ func newTopicsCreateCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
 	cmd.Flags().StringVar(&name, "name", "", "Topic name")
-	_ = cmd.MarkFlagRequired("course")
 	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
@@ -88,9 +103,18 @@ func newTopicsCreateCmd(app *App) *cobra.Command {
 func newTopicsEditCmd(app *App) *cobra.Command {
 	var courseID, topicID, name string
 	cmd := &cobra.Command{
-		Use:   "edit",
-		Short: "Edit a topic",
+		Use:     "edit [course_id] [topic_id]",
+		Aliases: []string{"update", "set"},
+		Short:   "Edit a topic",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &topicID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(topicID, "topic", "topic_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeTopics})
 			if err != nil {
@@ -107,11 +131,9 @@ func newTopicsEditCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&topicID, "topic", "", "Topic ID")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&topicID, "topic", "t", "", "Topic ID")
 	cmd.Flags().StringVar(&name, "name", "", "New topic name")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("topic")
 	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
@@ -119,9 +141,18 @@ func newTopicsEditCmd(app *App) *cobra.Command {
 func newTopicsDeleteCmd(app *App) *cobra.Command {
 	var courseID, topicID string
 	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete a topic",
+		Use:     "delete [course_id] [topic_id]",
+		Aliases: []string{"rm", "del"},
+		Short:   "Delete a topic",
+		Args:    cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &topicID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(topicID, "topic", "topic_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeTopics})
 			if err != nil {
@@ -137,19 +168,29 @@ func newTopicsDeleteCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&topicID, "topic", "", "Topic ID")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("topic")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&topicID, "topic", "t", "", "Topic ID")
 	return cmd
 }
 
 func newTopicsMoveCmd(app *App) *cobra.Command {
 	var courseID, courseWorkID, topicID string
 	cmd := &cobra.Command{
-		Use:   "move",
-		Short: "Move classwork into a topic",
+		Use:     "move [course_id] [course_work_id] [topic_id]",
+		Aliases: []string{"set-topic"},
+		Short:   "Move classwork into a topic",
+		Args:    cobra.MaximumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fillPositional(args, &courseID, &courseWorkID, &topicID)
+			if err := requireValue(courseID, "course", "course_id"); err != nil {
+				return err
+			}
+			if err := requireValue(courseWorkID, "course-work", "course_work_id"); err != nil {
+				return err
+			}
+			if err := requireValue(topicID, "topic", "topic_id"); err != nil {
+				return err
+			}
 			ctx := ctx(cmd)
 			client, err := app.ClassroomClient(ctx, []string{auth.ScopeCourseWorkStudents})
 			if err != nil {
@@ -166,11 +207,8 @@ func newTopicsMoveCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&courseID, "course", "", "Course ID")
-	cmd.Flags().StringVar(&courseWorkID, "course-work", "", "CourseWork ID")
-	cmd.Flags().StringVar(&topicID, "topic", "", "Topic ID")
-	_ = cmd.MarkFlagRequired("course")
-	_ = cmd.MarkFlagRequired("course-work")
-	_ = cmd.MarkFlagRequired("topic")
+	cmd.Flags().StringVarP(&courseID, "course", "c", "", "Course ID")
+	cmd.Flags().StringVarP(&courseWorkID, "course-work", "w", "", "CourseWork ID")
+	cmd.Flags().StringVarP(&topicID, "topic", "t", "", "Topic ID")
 	return cmd
 }
